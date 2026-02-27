@@ -487,18 +487,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
 
                 <!-- Email Domain -->
-                <div class="form-group">
-                    <label>Student Email Domain:</label>
-                    <div class="domain-input-wrapper">
-                        <span class="domain-prefix">studentname08@</span>
-                        <input type="text" name="email_domain"
-                               placeholder="school.ac.in"
-                               value="<?php echo isset($_POST['email_domain']) ? htmlspecialchars($_POST['email_domain']) : ''; ?>">
-                    </div>
-                    <div class="domain-hint">
-                        💡 e.g. if student email is <strong>name.surname08@sunshine.ac.in</strong> then enter <strong>sunshine.ac.in</strong>
-                    </div>
-                </div>
+<div class="form-group">
+    <label>Student Email Domain:</label>
+    <div class="domain-input-wrapper">
+        <span class="domain-prefix">studentname08@</span>
+        <input type="text" name="email_domain"
+               placeholder="school.ac.in"
+               value="<?php echo isset($_POST['email_domain']) ? htmlspecialchars($_POST['email_domain']) : ''; ?>">
+    </div>
+    <div class="domain-hint">
+        💡 e.g. if student email is <strong>name.surname08@sunshine.ac.in</strong> then enter <strong>sunshine.ac.in</strong>
+    </div>
+</div>
+
+<!-- Email Format Note -->
+<div style="background:#fff3cd; border:1px solid #ffc107; border-radius:10px; padding:14px 16px; margin-bottom:18px; font-size:13px; color:#856404;">
+    <strong>⚠️ Important — Trackera Email Format Requirements:</strong><br><br>
+    Trackera requires your institute to follow this email format:<br><br>
+    👨‍🎓 <strong>Students:</strong> <code>firstname.lastname08@yourdomain.com</code><br>
+    👨‍🏫 <strong>Faculty:</strong> &nbsp;&nbsp;<code>firstname.lastname@yourdomain.com</code><br><br>
+    The <strong>08</strong> before @ is what Trackera uses to identify students vs faculty. Please make sure your institute follows this format before registering.
+</div>
 
                 <!-- Email and Phone -->
                 <div class="input-row">
