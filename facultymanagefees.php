@@ -8,11 +8,10 @@ requireFaculty();
 
 $user          = getLoggedInUser();
 $faculty_email = $user['email'];
+$institute_id  = $user['institute_id'];
+$error         = '';
+$success       = '';
 
-$error   = '';
-$success = '';
-
-// Handle Add/Update Fees
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $student_email  = mysqli_real_escape_string($conn, $_POST['student_email']);
     $total_fees     = (float) $_POST['total_fees'];
@@ -27,58 +26,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     } elseif ($paid_amount > $total_fees) {
         $error = "Paid amount cannot be greater than total fees!";
     } else {
-        $yr_q = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 LIMIT 1");
-        $yr   = mysqli_fetch_assoc($yr_q);
+        $yr_q          = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 AND institute_id='$institute_id' LIMIT 1");
+        $yr            = mysqli_fetch_assoc($yr_q);
         $academic_year = $yr ? $yr['year'] : date('Y') . '-' . (date('Y') + 1);
 
-        $check = mysqli_query($conn, "SELECT id FROM fees WHERE student_email='$student_email' AND academic_year='$academic_year'");
+        $check = mysqli_query($conn, "SELECT id FROM fees WHERE student_email='$student_email' AND academic_year='$academic_year' AND institute_id='$institute_id'");
         if (mysqli_num_rows($check) > 0) {
-            mysqli_query($conn, "UPDATE fees SET
-                total_fees='$total_fees',
-                paid_amount='$paid_amount',
-                pending_amount='$pending_amount',
-                payment_date='$payment_date',
-                payment_mode='$payment_mode',
-                receipt_no='$receipt_no',
-                updated_by='$faculty_email',
-                created_at=NOW()
-                WHERE student_email='$student_email' AND academic_year='$academic_year'");
-            $success = "Fee record updated successfully!";
+            mysqli_query($conn, "UPDATE fees SET total_fees='$total_fees', paid_amount='$paid_amount', pending_amount='$pending_amount', payment_date='$payment_date', payment_mode='$payment_mode', receipt_no='$receipt_no', updated_by='$faculty_email', created_at=NOW()
+                WHERE student_email='$student_email' AND academic_year='$academic_year' AND institute_id='$institute_id'");
+            $success = "Fee record updated!";
         } else {
-            mysqli_query($conn, "INSERT INTO fees
-                (student_email, total_fees, paid_amount, pending_amount, payment_date, payment_mode, receipt_no, updated_by, academic_year, created_at)
-                VALUES
-                ('$student_email', '$total_fees', '$paid_amount', '$pending_amount', '$payment_date', '$payment_mode', '$receipt_no', '$faculty_email', '$academic_year', NOW())");
-            $success = "Fee record added successfully!";
+            mysqli_query($conn, "INSERT INTO fees (student_email, total_fees, paid_amount, pending_amount, payment_date, payment_mode, receipt_no, updated_by, academic_year, institute_id, created_at)
+                VALUES ('$student_email', '$total_fees', '$paid_amount', '$pending_amount', '$payment_date', '$payment_mode', '$receipt_no', '$faculty_email', '$academic_year', '$institute_id', NOW())");
+            $success = "Fee record added!";
         }
     }
 }
 
-// Handle Delete
 if (isset($_GET['delete'])) {
     $id = (int) $_GET['delete'];
-    mysqli_query($conn, "DELETE FROM fees WHERE id=$id");
+    mysqli_query($conn, "DELETE FROM fees WHERE id=$id AND institute_id='$institute_id'");
     $success = "Fee record deleted!";
 }
 
-// Filters
 $filter_grade    = isset($_GET['grade'])    ? mysqli_real_escape_string($conn, $_GET['grade'])    : '';
 $filter_division = isset($_GET['division']) ? mysqli_real_escape_string($conn, $_GET['division']) : '';
 
-// Get current academic year
-$yr_q = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 LIMIT 1");
-$yr   = mysqli_fetch_assoc($yr_q);
+$yr_q          = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 AND institute_id='$institute_id' LIMIT 1");
+$yr            = mysqli_fetch_assoc($yr_q);
 $academic_year = $yr ? $yr['year'] : date('Y') . '-' . (date('Y') + 1);
 
-// Load all students for dropdown
-$all_students_q = mysqli_query($conn, "SELECT name, email, grade, division FROM users WHERE role='student' ORDER BY grade ASC, name ASC");
-$all_students = [];
+$all_students_q = mysqli_query($conn, "SELECT name, email, grade, division FROM users WHERE role='student' AND institute_id='$institute_id' ORDER BY grade ASC, name ASC");
+$all_students   = [];
 while ($row = mysqli_fetch_assoc($all_students_q)) {
     $all_students[] = $row;
 }
 
-// Load fees records with filter
-$where = "WHERE f.academic_year='$academic_year'";
+$where = "WHERE f.academic_year='$academic_year' AND f.institute_id='$institute_id'";
 if ($filter_grade)    $where .= " AND u.grade='$filter_grade'";
 if ($filter_division) $where .= " AND u.division='$filter_division'";
 
@@ -96,17 +80,13 @@ while ($row = mysqli_fetch_assoc($fees_q)) {
     $fees_records[] = $row;
 }
 
-// Stats
-$total_students = count($all_students);
-
-$fees_entered_q = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM fees WHERE academic_year='$academic_year'");
-$fees_entered   = mysqli_fetch_assoc($fees_entered_q)['cnt'];
-
-$pending_q     = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM fees WHERE academic_year='$academic_year' AND pending_amount > 0");
-$pending_count = mysqli_fetch_assoc($pending_q)['cnt'];
-
-$paid_q     = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM fees WHERE academic_year='$academic_year' AND pending_amount = 0");
-$paid_count = mysqli_fetch_assoc($paid_q)['cnt'];
+$total_students    = count($all_students);
+$fees_entered_q    = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM fees WHERE academic_year='$academic_year' AND institute_id='$institute_id'");
+$fees_entered      = mysqli_fetch_assoc($fees_entered_q)['cnt'];
+$pending_q         = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM fees WHERE academic_year='$academic_year' AND institute_id='$institute_id' AND pending_amount > 0");
+$pending_count     = mysqli_fetch_assoc($pending_q)['cnt'];
+$paid_q            = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM fees WHERE academic_year='$academic_year' AND institute_id='$institute_id' AND pending_amount = 0");
+$paid_count        = mysqli_fetch_assoc($paid_q)['cnt'];
 ?>
 <!DOCTYPE html>
 <html lang="en">

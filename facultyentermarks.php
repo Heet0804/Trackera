@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
@@ -7,16 +8,14 @@ requireFaculty();
 
 $user          = getLoggedInUser();
 $faculty_email = $user['email'];
+$institute_id  = $user['institute_id'];
+$error         = '';
+$success       = '';
 
-$error   = '';
-$success = '';
-
-// Get academic year
-$yr_q = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 LIMIT 1");
-$yr   = mysqli_fetch_assoc($yr_q);
+$yr_q          = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 AND institute_id='$institute_id' LIMIT 1");
+$yr            = mysqli_fetch_assoc($yr_q);
 $academic_year = $yr ? $yr['year'] : date('Y') . '-' . (date('Y') + 1);
 
-// Handle Save Marks
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $grade     = mysqli_real_escape_string($conn, $_POST['grade']);
     $division  = mysqli_real_escape_string($conn, $_POST['division']);
@@ -37,53 +36,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
             $obtained      = (float) $obtained;
             $total         = isset($_POST['total_marks'][$student_email]) ? (float) $_POST['total_marks'][$student_email] : 100;
 
-            if ($obtained > $total) continue; // skip invalid
+            if ($obtained > $total) continue;
 
-            // Check if marks already exist
-            $check = mysqli_query($conn, "SELECT id FROM marks WHERE student_email='$student_email' AND subject='$subject' AND exam_type='$exam_type' AND academic_year='$academic_year'");
+            $check = mysqli_query($conn, "SELECT id FROM marks WHERE student_email='$student_email' AND subject='$subject' AND exam_type='$exam_type' AND academic_year='$academic_year' AND institute_id='$institute_id'");
             if (mysqli_num_rows($check) > 0) {
-                mysqli_query($conn, "UPDATE marks SET marks_obtained='$obtained', total_marks='$total', teacher_email='$faculty_email', created_at=NOW() WHERE student_email='$student_email' AND subject='$subject' AND exam_type='$exam_type' AND academic_year='$academic_year'");
+                mysqli_query($conn, "UPDATE marks SET marks_obtained='$obtained', total_marks='$total', teacher_email='$faculty_email', created_at=NOW()
+                    WHERE student_email='$student_email' AND subject='$subject' AND exam_type='$exam_type' AND academic_year='$academic_year' AND institute_id='$institute_id'");
             } else {
-                mysqli_query($conn, "INSERT INTO marks (student_email, subject, exam_type, marks_obtained, total_marks, teacher_email, academic_year, created_at)
-                    VALUES ('$student_email', '$subject', '$exam_type', '$obtained', '$total', '$faculty_email', '$academic_year', NOW())");
+                mysqli_query($conn, "INSERT INTO marks (student_email, subject, exam_type, marks_obtained, total_marks, teacher_email, academic_year, institute_id, created_at)
+                    VALUES ('$student_email', '$subject', '$exam_type', '$obtained', '$total', '$faculty_email', '$academic_year', '$institute_id', NOW())");
             }
             $saved++;
         }
-        $success = "Marks saved successfully for $saved students!";
+        $success = "Marks saved for $saved students!";
     }
 }
 
-// Filters
-$sel_grade    = isset($_POST['grade'])      ? mysqli_real_escape_string($conn, $_POST['grade'])      : '';
-$sel_division = isset($_POST['division'])   ? mysqli_real_escape_string($conn, $_POST['division'])   : '';
-$sel_subject  = isset($_POST['subject'])    ? mysqli_real_escape_string($conn, $_POST['subject'])    : '';
-$sel_exam     = isset($_POST['exam_type'])  ? mysqli_real_escape_string($conn, $_POST['exam_type'])  : '';
+$sel_grade    = isset($_POST['grade'])     ? mysqli_real_escape_string($conn, $_POST['grade'])     : '';
+$sel_division = isset($_POST['division'])  ? mysqli_real_escape_string($conn, $_POST['division'])  : '';
+$sel_subject  = isset($_POST['subject'])   ? mysqli_real_escape_string($conn, $_POST['subject'])   : '';
+$sel_exam     = isset($_POST['exam_type']) ? mysqli_real_escape_string($conn, $_POST['exam_type']) : '';
 
-// Load students
 $students = [];
 if ($sel_grade && $sel_division) {
-    $st_q = mysqli_query($conn, "SELECT user_id, name, email, roll_no FROM users WHERE role='student' AND grade='$sel_grade' AND division='$sel_division' ORDER BY roll_no ASC, name ASC");
+    $st_q = mysqli_query($conn, "SELECT user_id, name, email, roll_no FROM users WHERE role='student' AND grade='$sel_grade' AND division='$sel_division' AND institute_id='$institute_id' ORDER BY roll_no ASC, name ASC");
     while ($row = mysqli_fetch_assoc($st_q)) {
         $students[] = $row;
     }
 }
 
-// Load existing marks for selected subject+exam
 $existing_marks = [];
 if ($sel_subject && $sel_exam && !empty($students)) {
     foreach ($students as $s) {
         $em = mysqli_real_escape_string($conn, $s['email']);
-        $mq = mysqli_query($conn, "SELECT marks_obtained, total_marks FROM marks WHERE student_email='$em' AND subject='$sel_subject' AND exam_type='$sel_exam' AND academic_year='$academic_year'");
+        $mq = mysqli_query($conn, "SELECT marks_obtained, total_marks FROM marks WHERE student_email='$em' AND subject='$sel_subject' AND exam_type='$sel_exam' AND academic_year='$academic_year' AND institute_id='$institute_id'");
         if (mysqli_num_rows($mq) > 0) {
             $existing_marks[$s['email']] = mysqli_fetch_assoc($mq);
         }
     }
 }
 
-// Get subjects for selected grade
 $subjects = [];
 if ($sel_grade) {
-    $sub_q = mysqli_query($conn, "SELECT subject_name FROM subjects WHERE grade='$sel_grade' ORDER BY subject_name ASC");
+    $sub_q = mysqli_query($conn, "SELECT subject_name FROM subjects WHERE grade='$sel_grade' AND institute_id='$institute_id' ORDER BY subject_name ASC");
     while ($row = mysqli_fetch_assoc($sub_q)) {
         $subjects[] = $row['subject_name'];
     }

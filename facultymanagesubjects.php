@@ -1,14 +1,16 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
 requireFaculty();
 
-$error   = '';
-$success = '';
+$user         = getLoggedInUser();
+$institute_id = $user['institute_id'];
+$error        = '';
+$success      = '';
 
-// Handle Add Subject
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add'])) {
     $subject_name = mysqli_real_escape_string($conn, trim($_POST['subject_name']));
     $grade        = mysqli_real_escape_string($conn, $_POST['grade']);
@@ -17,44 +19,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add'])) {
         $error = "Please fill in all fields!";
     } else {
         if ($grade == 'all') {
-            // Add for all grades 1-10
-            $already_error = false;
             for ($g = 1; $g <= 10; $g++) {
-                $check = mysqli_query($conn, "SELECT subject_id FROM subjects WHERE subject_name='$subject_name' AND grade='$g'");
+                $check = mysqli_query($conn, "SELECT id FROM subjects WHERE subject_name='$subject_name' AND grade='$g' AND institute_id='$institute_id'");
                 if (mysqli_num_rows($check) == 0) {
-                    mysqli_query($conn, "INSERT INTO subjects (subject_name, grade, created_at) VALUES ('$subject_name', '$g', NOW())");
+                    mysqli_query($conn, "INSERT INTO subjects (subject_name, grade, institute_id, created_at) VALUES ('$subject_name', '$g', '$institute_id', NOW())");
                 }
             }
-            $success = "Subject '$subject_name' added for all grades successfully!";
+            $success = "Subject '$subject_name' added for all grades!";
         } else {
-            $check = mysqli_query($conn, "SELECT subject_id FROM subjects WHERE subject_name='$subject_name' AND grade='$grade'");
+            $check = mysqli_query($conn, "SELECT id FROM subjects WHERE subject_name='$subject_name' AND grade='$grade' AND institute_id='$institute_id'");
             if (mysqli_num_rows($check) > 0) {
                 $error = "Subject '$subject_name' already exists for Grade $grade!";
             } else {
-                mysqli_query($conn, "INSERT INTO subjects (subject_name, grade, created_at) VALUES ('$subject_name', '$grade', NOW())");
-                $success = "Subject '$subject_name' added for Grade $grade successfully!";
+                mysqli_query($conn, "INSERT INTO subjects (subject_name, grade, institute_id, created_at) VALUES ('$subject_name', '$grade', '$institute_id', NOW())");
+                $success = "Subject '$subject_name' added for Grade $grade!";
             }
         }
     }
 }
 
-// Handle Delete
 if (isset($_GET['delete'])) {
-    $subject_id = (int) $_GET['delete'];
-    mysqli_query($conn, "DELETE FROM subjects WHERE subject_id=$id");
-    $success = "Subject deleted successfully!";
+    $id = (int) $_GET['delete'];
+    mysqli_query($conn, "DELETE FROM subjects WHERE id=$id AND institute_id='$institute_id'");
+    $success = "Subject deleted!";
 }
 
-// Filters
 $filter_grade  = isset($_GET['grade'])  ? mysqli_real_escape_string($conn, $_GET['grade'])  : '';
 $filter_search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
-$where = "WHERE 1=1";
+$where = "WHERE institute_id='$institute_id'";
 if ($filter_grade)  $where .= " AND grade='$filter_grade'";
 if ($filter_search) $where .= " AND subject_name LIKE '%$filter_search%'";
 
-$subjects_q = mysqli_query($conn, "SELECT subject_id, subject_name, grade FROM subjects $where ORDER BY grade ASC, subject_name ASC");
-$subjects = [];
+$subjects_q = mysqli_query($conn, "SELECT id, subject_name, grade FROM subjects $where ORDER BY grade ASC, subject_name ASC");
+$subjects   = [];
 while ($row = mysqli_fetch_assoc($subjects_q)) {
     $subjects[] = $row;
 }

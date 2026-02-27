@@ -1,14 +1,16 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
 requireFaculty();
 
-$error   = '';
-$success = '';
+$user         = getLoggedInUser();
+$institute_id = $user['institute_id'];
+$error        = '';
+$success      = '';
 
-// Handle manual override: faculty assigns language+division to a student
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['override'])) {
     $student_email = mysqli_real_escape_string($conn, $_POST['student_email']);
     $language      = mysqli_real_escape_string($conn, $_POST['language']);
@@ -16,36 +18,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['override'])) {
     if (!$student_email || !$language) {
         $error = "Please select student and language!";
     } else {
-        if ($language == 'Sanskrit')     $division = 'A';
-        elseif ($language == 'French')   $division = 'E';
-        else                             $division = null; // Hindi: faculty assigns B/C/D manually
+        if ($language == 'Sanskrit')   $division = 'A';
+        elseif ($language == 'French') $division = 'E';
+        else                           $division = null;
 
         $div_val = $division ? "'$division'" : "NULL";
 
-        // Update users table
-        mysqli_query($conn, "UPDATE users SET language='$language', division=$div_val WHERE email='$student_email'");
+        mysqli_query($conn, "UPDATE users SET language='$language', division=$div_val WHERE email='$student_email' AND institute_id='$institute_id'");
 
-        // Update or insert language_selection
-        $check = mysqli_query($conn, "SELECT id FROM language_selection WHERE student_email='$student_email'");
+        $check = mysqli_query($conn, "SELECT id FROM language_selection WHERE student_email='$student_email' AND institute_id='$institute_id'");
         if (mysqli_num_rows($check) > 0) {
-            mysqli_query($conn, "UPDATE language_selection SET language='$language', created_at=NOW() WHERE student_email='$student_email'");
+            mysqli_query($conn, "UPDATE language_selection SET language='$language', created_at=NOW() WHERE student_email='$student_email' AND institute_id='$institute_id'");
         } else {
-            $grade_q = mysqli_query($conn, "SELECT grade FROM users WHERE email='$student_email'");
+            $grade_q = mysqli_query($conn, "SELECT grade FROM users WHERE email='$student_email' AND institute_id='$institute_id'");
             $grade   = mysqli_fetch_assoc($grade_q)['grade'] ?? 7;
-            mysqli_query($conn, "INSERT INTO language_selection (student_email, language, grade, created_at) VALUES ('$student_email', '$language', '$grade', NOW())");
+            mysqli_query($conn, "INSERT INTO language_selection (student_email, language, grade, institute_id, created_at) VALUES ('$student_email', '$language', '$grade', '$institute_id', NOW())");
         }
-
-        $success = "Language override applied successfully!";
+        $success = "Language override applied!";
     }
 }
 
-// Fetch all Grade 7, 8, 9, 10 students with language selection status
 $students_q = mysqli_query($conn, "
     SELECT u.name, u.email, u.grade, u.division, u.language,
            ls.language AS ls_language
     FROM users u
-    LEFT JOIN language_selection ls ON u.email = ls.student_email
-    WHERE u.role='student' AND u.grade IN (7, 8, 9, 10)
+    LEFT JOIN language_selection ls ON u.email = ls.student_email AND ls.institute_id='$institute_id'
+    WHERE u.role='student' AND u.grade IN (7,8,9,10) AND u.institute_id='$institute_id'
     ORDER BY u.grade ASC, u.name ASC
 ");
 $students = [];
@@ -53,13 +51,11 @@ while ($row = mysqli_fetch_assoc($students_q)) {
     $students[] = $row;
 }
 
-// Count stats
 $total    = count($students);
 $selected = count(array_filter($students, fn($s) => !empty($s['language'])));
 $pending  = $total - $selected;
 
-// All grade 7 students (for override dropdown)
-$g7_q = mysqli_query($conn, "SELECT name, email FROM users WHERE role='student' AND grade=7 ORDER BY name ASC");
+$g7_q        = mysqli_query($conn, "SELECT name, email FROM users WHERE role='student' AND grade=7 AND institute_id='$institute_id' ORDER BY name ASC");
 $g7_students = [];
 while ($row = mysqli_fetch_assoc($g7_q)) {
     $g7_students[] = $row;

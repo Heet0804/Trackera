@@ -1,14 +1,16 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
 requireFaculty();
 
-$error   = '';
-$success = '';
+$user         = getLoggedInUser();
+$institute_id = $user['institute_id'];
+$error        = '';
+$success      = '';
 
-// Handle Save Roll Numbers
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $saved = 0;
     if (isset($_POST['roll_no']) && is_array($_POST['roll_no'])) {
@@ -16,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
             $student_email = mysqli_real_escape_string($conn, $student_email);
             $roll_no       = (int) $roll_no;
             if ($roll_no > 0) {
-                mysqli_query($conn, "UPDATE users SET roll_no='$roll_no' WHERE email='$student_email' AND role='student'");
+                mysqli_query($conn, "UPDATE users SET roll_no='$roll_no' WHERE email='$student_email' AND role='student' AND institute_id='$institute_id'");
                 $saved++;
             }
         }
@@ -24,30 +26,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $success = "Roll numbers saved for $saved students!";
 }
 
-// Handle Auto Generate
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['auto'])) {
     $grade    = mysqli_real_escape_string($conn, $_POST['grade']);
     $division = mysqli_real_escape_string($conn, $_POST['division']);
     if ($grade && $division) {
-        $st_q = mysqli_query($conn, "SELECT email FROM users WHERE role='student' AND grade='$grade' AND division='$division' ORDER BY name ASC");
-        $roll = 1;
+        $st_q = mysqli_query($conn, "SELECT email FROM users WHERE role='student' AND grade='$grade' AND division='$division' AND institute_id='$institute_id' ORDER BY name ASC");
+        $roll  = 1;
         while ($row = mysqli_fetch_assoc($st_q)) {
             $em = mysqli_real_escape_string($conn, $row['email']);
-            mysqli_query($conn, "UPDATE users SET roll_no='$roll' WHERE email='$em'");
+            mysqli_query($conn, "UPDATE users SET roll_no='$roll' WHERE email='$em' AND institute_id='$institute_id'");
             $roll++;
         }
         $success = "Roll numbers auto-generated for Grade $grade-$division!";
     }
 }
 
-// Filters
 $sel_grade    = isset($_POST['grade'])    ? mysqli_real_escape_string($conn, $_POST['grade'])    : '';
 $sel_division = isset($_POST['division']) ? mysqli_real_escape_string($conn, $_POST['division']) : '';
 
-// Load students
 $students = [];
 if ($sel_grade && $sel_division) {
-    $st_q = mysqli_query($conn, "SELECT user_id, name, email, division, roll_no FROM users WHERE role='student' AND grade='$sel_grade' AND division='$sel_division' ORDER BY roll_no ASC, name ASC");
+    $st_q = mysqli_query($conn, "SELECT user_id, name, email, division, roll_no FROM users WHERE role='student' AND grade='$sel_grade' AND division='$sel_division' AND institute_id='$institute_id' ORDER BY roll_no ASC, name ASC");
     while ($row = mysqli_fetch_assoc($st_q)) {
         $students[] = $row;
     }

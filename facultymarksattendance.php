@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
@@ -7,16 +8,14 @@ requireFaculty();
 
 $user          = getLoggedInUser();
 $faculty_email = $user['email'];
+$institute_id  = $user['institute_id'];
+$error         = '';
+$success       = '';
 
-$error   = '';
-$success = '';
-
-// Get academic year
-$yr_q = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 LIMIT 1");
-$yr   = mysqli_fetch_assoc($yr_q);
+$yr_q          = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 AND institute_id='$institute_id' LIMIT 1");
+$yr            = mysqli_fetch_assoc($yr_q);
 $academic_year = $yr ? $yr['year'] : date('Y') . '-' . (date('Y') + 1);
 
-// Handle Save Attendance
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $grade    = mysqli_real_escape_string($conn, $_POST['grade']);
     $division = mysqli_real_escape_string($conn, $_POST['division']);
@@ -26,60 +25,53 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     if (!$grade || !$division || !$subject || !$date) {
         $error = "Please select Grade, Division, Subject and Date!";
     } elseif (!isset($_POST['attendance']) || empty($_POST['attendance'])) {
-        $error = "No students found to save attendance!";
+        $error = "No students found!";
     } else {
         $saved = 0;
         foreach ($_POST['attendance'] as $student_email => $status) {
             $student_email = mysqli_real_escape_string($conn, $student_email);
             $status_val    = $status == 'P' ? 'Present' : 'Absent';
 
-            // Check if attendance already exists for this student+subject+date
-            $check = mysqli_query($conn, "SELECT id FROM attendance WHERE student_email='$student_email' AND subject='$subject' AND date='$date'");
+            $check = mysqli_query($conn, "SELECT id FROM attendance WHERE student_email='$student_email' AND subject='$subject' AND date='$date' AND institute_id='$institute_id'");
             if (mysqli_num_rows($check) > 0) {
-                // Update existing
-                mysqli_query($conn, "UPDATE attendance SET status='$status_val', teacher_email='$faculty_email' WHERE student_email='$student_email' AND subject='$subject' AND date='$date'");
+                mysqli_query($conn, "UPDATE attendance SET status='$status_val', teacher_email='$faculty_email' WHERE student_email='$student_email' AND subject='$subject' AND date='$date' AND institute_id='$institute_id'");
             } else {
-                // Insert new
-                mysqli_query($conn, "INSERT INTO attendance (student_email, subject, date, status, teacher_email, academic_year, created_at)
-                    VALUES ('$student_email', '$subject', '$date', '$status_val', '$faculty_email', '$academic_year', NOW())");
+                mysqli_query($conn, "INSERT INTO attendance (student_email, subject, date, status, teacher_email, academic_year, institute_id, created_at)
+                    VALUES ('$student_email', '$subject', '$date', '$status_val', '$faculty_email', '$academic_year', '$institute_id', NOW())");
             }
             $saved++;
         }
-        $success = "Attendance saved successfully for $saved students!";
+        $success = "Attendance saved for $saved students!";
     }
 }
 
-// Load filters
 $sel_grade    = isset($_POST['grade'])    ? mysqli_real_escape_string($conn, $_POST['grade'])    : '';
 $sel_division = isset($_POST['division']) ? mysqli_real_escape_string($conn, $_POST['division']) : '';
 $sel_subject  = isset($_POST['subject'])  ? mysqli_real_escape_string($conn, $_POST['subject'])  : '';
 $sel_date     = isset($_POST['date'])     ? mysqli_real_escape_string($conn, $_POST['date'])     : date('Y-m-d');
 
-// Load students for selected grade+division
 $students = [];
 if ($sel_grade && $sel_division) {
-    $st_q = mysqli_query($conn, "SELECT user_id, name, email, roll_no FROM users WHERE role='student' AND grade='$sel_grade' AND division='$sel_division' ORDER BY roll_no ASC, name ASC");
+    $st_q = mysqli_query($conn, "SELECT user_id, name, email, roll_no FROM users WHERE role='student' AND grade='$sel_grade' AND division='$sel_division' AND institute_id='$institute_id' ORDER BY roll_no ASC, name ASC");
     while ($row = mysqli_fetch_assoc($st_q)) {
         $students[] = $row;
     }
 }
 
-// Load existing attendance for selected date+subject
 $existing_att = [];
 if ($sel_subject && $sel_date && !empty($students)) {
     foreach ($students as $s) {
         $em  = mysqli_real_escape_string($conn, $s['email']);
-        $att = mysqli_query($conn, "SELECT status FROM attendance WHERE student_email='$em' AND subject='$sel_subject' AND date='$sel_date'");
+        $att = mysqli_query($conn, "SELECT status FROM attendance WHERE student_email='$em' AND subject='$sel_subject' AND date='$sel_date' AND institute_id='$institute_id'");
         if (mysqli_num_rows($att) > 0) {
             $existing_att[$s['email']] = mysqli_fetch_assoc($att)['status'];
         }
     }
 }
 
-// Get subjects for selected grade
 $subjects = [];
 if ($sel_grade) {
-    $sub_q = mysqli_query($conn, "SELECT subject_name FROM subjects WHERE grade='$sel_grade' ORDER BY subject_name ASC");
+    $sub_q = mysqli_query($conn, "SELECT subject_name FROM subjects WHERE grade='$sel_grade' AND institute_id='$institute_id' ORDER BY subject_name ASC");
     while ($row = mysqli_fetch_assoc($sub_q)) {
         $subjects[] = $row['subject_name'];
     }

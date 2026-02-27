@@ -1,24 +1,25 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
 requireFaculty();
 
-$error   = '';
-$success = '';
+$user         = getLoggedInUser();
+$institute_id = $user['institute_id'];
+$error        = '';
+$success      = '';
 
-// Handle Save All Divisions
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $grade = mysqli_real_escape_string($conn, $_POST['grade']);
     $saved = 0;
-
     if (isset($_POST['division']) && is_array($_POST['division'])) {
         foreach ($_POST['division'] as $student_email => $division) {
             $student_email = mysqli_real_escape_string($conn, $student_email);
             $division      = mysqli_real_escape_string($conn, $division);
             if ($division !== '') {
-                mysqli_query($conn, "UPDATE users SET division='$division' WHERE email='$student_email' AND role='student'");
+                mysqli_query($conn, "UPDATE users SET division='$division' WHERE email='$student_email' AND role='student' AND institute_id='$institute_id'");
                 $saved++;
             }
         }
@@ -26,13 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $success = "Divisions saved for $saved students!";
 }
 
-// Load students for selected grade
-$sel_grade = isset($_POST['grade']) ? mysqli_real_escape_string($conn, $_POST['grade']) : 
-             (isset($_GET['grade'])  ? mysqli_real_escape_string($conn, $_GET['grade'])  : '');
+$sel_grade = isset($_POST['grade']) ? mysqli_real_escape_string($conn, $_POST['grade']) :
+             (isset($_GET['grade']) ? mysqli_real_escape_string($conn, $_GET['grade'])  : '');
 
 $students = [];
 if ($sel_grade) {
-    $st_q = mysqli_query($conn, "SELECT user_id, name, email, division, gender FROM users WHERE role='student' AND grade='$sel_grade' ORDER BY name ASC");
+    $st_q = mysqli_query($conn, "SELECT user_id, name, email, division, gender FROM users WHERE role='student' AND grade='$sel_grade' AND institute_id='$institute_id' ORDER BY name ASC");
     while ($row = mysqli_fetch_assoc($st_q)) {
         $students[] = $row;
     }

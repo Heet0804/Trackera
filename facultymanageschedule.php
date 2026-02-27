@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
@@ -7,11 +8,10 @@ requireFaculty();
 
 $user          = getLoggedInUser();
 $faculty_email = $user['email'];
+$institute_id  = $user['institute_id'];
+$error         = '';
+$success       = '';
 
-$error   = '';
-$success = '';
-
-// Fixed periods with time slots
 $periods = [
     1  => ['time_from' => '09:00', 'time_to' => '10:00'],
     2  => ['time_from' => '10:00', 'time_to' => '11:00'],
@@ -25,12 +25,10 @@ $periods = [
     10 => ['time_from' => '19:00', 'time_to' => '20:00'],
 ];
 
-// Get academic year
-$yr_q = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 LIMIT 1");
-$yr   = mysqli_fetch_assoc($yr_q);
+$yr_q          = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 AND institute_id='$institute_id' LIMIT 1");
+$yr            = mysqli_fetch_assoc($yr_q);
 $academic_year = $yr ? $yr['year'] : date('Y') . '-' . (date('Y') + 1);
 
-// Handle Save
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     $grade    = mysqli_real_escape_string($conn, $_POST['grade']);
     $division = mysqli_real_escape_string($conn, $_POST['division']);
@@ -39,43 +37,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save'])) {
     if (!$grade || !$division || !$day) {
         $error = "Please select Grade, Division and Day!";
     } else {
-        // Delete existing schedule for this grade+division+day
-        mysqli_query($conn, "DELETE FROM schedule WHERE grade='$grade' AND division='$division' AND day_name='$day' AND academic_year='$academic_year'");
+        mysqli_query($conn, "DELETE FROM schedule WHERE grade='$grade' AND division='$division' AND day_name='$day' AND academic_year='$academic_year' AND institute_id='$institute_id'");
 
-        // Insert new periods
         foreach ($periods as $p_num => $time) {
             $subject = isset($_POST["period$p_num"]) ? mysqli_real_escape_string($conn, $_POST["period$p_num"]) : '';
             if (!empty($subject)) {
-                mysqli_query($conn, "INSERT INTO schedule (grade, division, day_name, subject, time_from, time_to, teacher_email, academic_year, created_at)
-                    VALUES ('$grade', '$division', '$day', '$subject', '{$time['time_from']}', '{$time['time_to']}', '$faculty_email', '$academic_year', NOW())");
+                mysqli_query($conn, "INSERT INTO schedule (grade, division, day_name, subject, time_from, time_to, teacher_email, academic_year, institute_id, created_at)
+                    VALUES ('$grade', '$division', '$day', '$subject', '{$time['time_from']}', '{$time['time_to']}', '$faculty_email', '$academic_year', '$institute_id', NOW())");
             }
         }
-        $success = "Schedule saved successfully for Grade $grade-$division, $day!";
+        $success = "Schedule saved for Grade $grade-$division, $day!";
     }
 }
 
-// Load existing schedule if grade+division+day selected
 $sel_grade    = isset($_POST['grade'])    ? mysqli_real_escape_string($conn, $_POST['grade'])    : '';
 $sel_division = isset($_POST['division']) ? mysqli_real_escape_string($conn, $_POST['division']) : '';
 $sel_day      = isset($_POST['day'])      ? mysqli_real_escape_string($conn, $_POST['day'])      : '';
 
 $existing = [];
 if ($sel_grade && $sel_division && $sel_day) {
-    $ex_q = mysqli_query($conn, "SELECT time_from, subject FROM schedule WHERE grade='$sel_grade' AND division='$sel_division' AND day_name='$sel_day' AND academic_year='$academic_year'");
+    $ex_q = mysqli_query($conn, "SELECT time_from, subject FROM schedule WHERE grade='$sel_grade' AND division='$sel_division' AND day_name='$sel_day' AND academic_year='$academic_year' AND institute_id='$institute_id'");
     while ($row = mysqli_fetch_assoc($ex_q)) {
         $existing[$row['time_from']] = $row['subject'];
     }
 }
 
-// Get subjects from DB for selected grade
 $subjects = [];
 if ($sel_grade) {
-    $sub_q = mysqli_query($conn, "SELECT subject_name FROM subjects WHERE grade='$sel_grade' ORDER BY subject_name ASC");
+    $sub_q = mysqli_query($conn, "SELECT subject_name FROM subjects WHERE grade='$sel_grade' AND institute_id='$institute_id' ORDER BY subject_name ASC");
     while ($row = mysqli_fetch_assoc($sub_q)) {
         $subjects[] = $row['subject_name'];
     }
 }
-// Fallback default subjects if none in DB
 if (empty($subjects)) {
     $subjects = ['English', 'Mathematics', 'Science', 'Social Studies', 'Hindi', 'Computer', 'Physical Education', 'Art'];
 }

@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
@@ -9,28 +10,26 @@ $user          = getLoggedInUser();
 $student_email = $user['email'];
 $student_name  = $user['name'];
 $grade         = $user['grade'];
+$institute_id  = $user['institute_id'];
 
-// Only grade 7 students can select language
+// Only grade 7 students
 if ($grade != 7) {
     header("Location: studentdashboard.php");
     exit();
 }
 
 // Check if already selected
-$already_q = mysqli_query($conn, "SELECT language FROM language_selection WHERE student_email='$student_email'");
+$already_q        = mysqli_query($conn, "SELECT language FROM language_selection WHERE student_email='$student_email' AND institute_id='$institute_id'");
 if (mysqli_num_rows($already_q) > 0) {
-    $already = mysqli_fetch_assoc($already_q);
+    $already          = mysqli_fetch_assoc($already_q);
     $already_selected = $already['language'];
 } else {
     $already_selected = null;
 }
 
-// Get deadline from a faculty-set record (optional - fetch from language_selection table meta or hardcode)
-// For now we check if any setup exists
-$deadline = "31st March 2026"; // can be made dynamic later
-
-$error   = '';
-$success = '';
+$deadline = "31st March 2026";
+$error    = '';
+$success  = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$already_selected) {
     $language = mysqli_real_escape_string($conn, $_POST['language']);
@@ -38,30 +37,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$already_selected) {
     if (!in_array($language, ['Sanskrit', 'Hindi', 'French'])) {
         $error = "Invalid language selection.";
     } else {
-        // Auto-assign division based on language
-        if ($language == 'Sanskrit') {
-            $division = 'A';
-        } elseif ($language == 'French') {
-            $division = 'E';
-        } else {
-            // Hindi → division stays NULL, faculty will assign B/C/D
-            $division = null;
-        }
+        if ($language == 'Sanskrit')     $division = 'A';
+        elseif ($language == 'French')   $division = 'E';
+        else                             $division = null;
 
-        // Save to language_selection table
-        $ins = "INSERT INTO language_selection (student_email, language, grade, created_at)
-                VALUES ('$student_email', '$language', '$grade', NOW())";
+        $ins = "INSERT INTO language_selection (student_email, language, grade, institute_id, created_at)
+                VALUES ('$student_email', '$language', '$grade', '$institute_id', NOW())";
 
         if (mysqli_query($conn, $ins)) {
-            // Update users table: set language and division
             $div_val = $division ? "'$division'" : "NULL";
-            mysqli_query($conn, "UPDATE users SET language='$language', division=$div_val WHERE email='$student_email'");
-
-            // Update session division
-            $_SESSION['division'] = $division;
-
-            $success = "Language selected successfully! Redirecting to dashboard...";
-            header("refresh:2;url=studentdashboard.php");
+            mysqli_query($conn, "UPDATE users SET language='$language', division=$div_val WHERE email='$student_email' AND institute_id='$institute_id'");
+            $success = "Language selected successfully!";
+            $already_selected = $language;
         } else {
             $error = "Something went wrong. Please try again.";
         }

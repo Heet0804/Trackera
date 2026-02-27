@@ -1,50 +1,45 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
-// Only students allowed
 requireStudent();
 
-$user = getLoggedInUser();
+$user          = getLoggedInUser();
 $student_email = $user['email'];
 $student_name  = $user['name'];
 $grade         = $user['grade'];
 $division      = $user['division'];
 $roll_no       = $user['roll_no'];
+$institute_id  = $user['institute_id'];
 
-// First name only for welcome
 $first_name = explode(' ', $student_name)[0];
 
-// --- Attendance % ---
-$att_q = mysqli_query($conn, "SELECT COUNT(*) as total, SUM(status='Present') as present FROM attendance WHERE student_email='$student_email'");
-$att = mysqli_fetch_assoc($att_q);
+// Attendance %
+$att_q         = mysqli_query($conn, "SELECT COUNT(*) as total, SUM(status='Present') as present FROM attendance WHERE student_email='$student_email' AND institute_id='$institute_id'");
+$att           = mysqli_fetch_assoc($att_q);
 $total_classes = $att['total'] ?? 0;
 $present       = $att['present'] ?? 0;
 $att_percent   = $total_classes > 0 ? round(($present / $total_classes) * 100) : 0;
 
-// --- Fees ---
-$fees_q = mysqli_query($conn, "SELECT total_fees, paid_amount, pending_amount FROM fees WHERE student_email='$student_email' ORDER BY created_at DESC LIMIT 1");
-$fees = mysqli_fetch_assoc($fees_q);
+// Fees
+$fees_q = mysqli_query($conn, "SELECT total_fees, paid_amount, pending_amount FROM fees WHERE student_email='$student_email' AND institute_id='$institute_id' ORDER BY created_at DESC LIMIT 1");
+$fees   = mysqli_fetch_assoc($fees_q);
 
-// --- Today's Schedule ---
-$today = date('l'); // Monday, Tuesday etc.
-$schedule_q = mysqli_query($conn, "SELECT subject, time_from, time_to, teacher_email FROM schedule WHERE grade='$grade' AND division='$division' AND day_name='$today' ORDER BY time_from ASC");
+// Today's Schedule
+$today      = date('l');
+$schedule_q = mysqli_query($conn, "SELECT subject, time_from, time_to, teacher_email FROM schedule WHERE grade='$grade' AND division='$division' AND day_name='$today' AND institute_id='$institute_id' ORDER BY time_from ASC");
 
-// --- Recent Notices (last 3) ---
-$notices_q = mysqli_query($conn, "SELECT title, message, date FROM notices WHERE (grade='$grade' OR grade IS NULL) ORDER BY created_at DESC LIMIT 3");
+// Recent Notices
+$notices_q = mysqli_query($conn, "SELECT title, message, date FROM notices WHERE (grade='$grade' OR grade IS NULL) AND institute_id='$institute_id' ORDER BY created_at DESC LIMIT 3");
 
-// --- Language selection trigger check ---
-$lang_trigger_q = mysqli_query($conn, "SELECT id FROM language_selection WHERE student_email='$student_email'");
+// Language selection check
+$lang_trigger_q        = mysqli_query($conn, "SELECT id FROM language_selection WHERE student_email='$student_email' AND institute_id='$institute_id'");
 $lang_already_selected = mysqli_num_rows($lang_trigger_q) > 0;
 
-// Check if faculty has triggered language selection for this student
-// We check via a flag - if grade is 7 and faculty has triggered (we use academic_year table or a simple check)
 $show_language_btn = false;
 if ($grade == 7 && !$lang_already_selected) {
-    // Check if any language_selection record exists for grade 7 students (meaning faculty triggered it)
-    $trigger_q = mysqli_query($conn, "SELECT id FROM language_selection WHERE grade=7 LIMIT 1");
-    // Actually check via a dedicated trigger flag - for now show button if grade 7
     $show_language_btn = true;
 }
 ?>

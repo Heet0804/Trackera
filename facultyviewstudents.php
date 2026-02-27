@@ -1,41 +1,42 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
 requireFaculty();
 
-// Filters from GET
+$user         = getLoggedInUser();
+$institute_id = $user['institute_id'];
+
 $grade    = isset($_GET['grade'])    ? mysqli_real_escape_string($conn, $_GET['grade'])    : '';
 $division = isset($_GET['division']) ? mysqli_real_escape_string($conn, $_GET['division']) : '';
 $name     = isset($_GET['name'])     ? mysqli_real_escape_string($conn, $_GET['name'])     : '';
 $roll     = isset($_GET['roll'])     ? mysqli_real_escape_string($conn, $_GET['roll'])     : '';
 
-// Build query
-$where = "WHERE role='student'";
+$where = "WHERE role='student' AND institute_id='$institute_id'";
 if ($grade)    $where .= " AND grade='$grade'";
 if ($division) $where .= " AND division='$division'";
 if ($name)     $where .= " AND name LIKE '%$name%'";
 if ($roll)     $where .= " AND roll_no='$roll'";
 
-$students_q = mysqli_query($conn, "SELECT user_id, name, email, grade, division, roll_no, gender FROM users $where ORDER BY grade ASC, division ASC, roll_no ASC");
-$students = [];
+$students_q  = mysqli_query($conn, "SELECT user_id, name, email, grade, division, roll_no, gender FROM users $where ORDER BY grade ASC, division ASC, roll_no ASC");
+$students    = [];
 while ($row = mysqli_fetch_assoc($students_q)) {
     $students[] = $row;
 }
 $total_count = count($students);
 
-// Stats
-$total_q  = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student'");
+$total_q  = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND institute_id='$institute_id'");
 $total    = mysqli_fetch_assoc($total_q)['cnt'];
 
-$male_q   = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND gender='Male'");
+$male_q   = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND gender='Male' AND institute_id='$institute_id'");
 $male     = mysqli_fetch_assoc($male_q)['cnt'];
 
-$female_q = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND gender='Female'");
+$female_q = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND gender='Female' AND institute_id='$institute_id'");
 $female   = mysqli_fetch_assoc($female_q)['cnt'];
 
-$div_q    = mysqli_query($conn, "SELECT COUNT(DISTINCT division) as cnt FROM users WHERE role='student' AND division IS NOT NULL");
+$div_q    = mysqli_query($conn, "SELECT COUNT(DISTINCT division) as cnt FROM users WHERE role='student' AND division IS NOT NULL AND institute_id='$institute_id'");
 $divs     = mysqli_fetch_assoc($div_q)['cnt'];
 ?>
 <!DOCTYPE html>

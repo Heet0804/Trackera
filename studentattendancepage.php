@@ -1,9 +1,9 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
-// Only students allowed
 requireStudent();
 
 $user          = getLoggedInUser();
@@ -11,25 +11,24 @@ $student_email = $user['email'];
 $student_name  = $user['name'];
 $grade         = $user['grade'];
 $division      = $user['division'];
+$institute_id  = $user['institute_id'];
 
 // Get all subjects for this student's grade
-$subjects_q = mysqli_query($conn, "SELECT DISTINCT subject_name FROM subjects WHERE grade='$grade' ORDER BY subject_name ASC");
-$subjects = [];
+$subjects_q = mysqli_query($conn, "SELECT DISTINCT subject_name FROM subjects WHERE grade='$grade' AND institute_id='$institute_id' ORDER BY subject_name ASC");
+$subjects   = [];
 while ($row = mysqli_fetch_assoc($subjects_q)) {
     $subjects[] = $row['subject_name'];
 }
 
-// Get selected subject from URL (default to first subject)
 $selected_subject = isset($_GET['subject']) ? mysqli_real_escape_string($conn, $_GET['subject']) : ($subjects[0] ?? '');
 
-// Get attendance data for selected subject
 $att_data = [];
-$total = 0;
-$present = 0;
-$absent = 0;
+$total    = 0;
+$present  = 0;
+$absent   = 0;
 
 if ($selected_subject) {
-    $att_q = mysqli_query($conn, "SELECT date, status FROM attendance WHERE student_email='$student_email' AND subject='$selected_subject' ORDER BY date DESC");
+    $att_q = mysqli_query($conn, "SELECT date, status FROM attendance WHERE student_email='$student_email' AND subject='$selected_subject' AND institute_id='$institute_id' ORDER BY date DESC");
     while ($row = mysqli_fetch_assoc($att_q)) {
         $att_data[] = $row;
         $total++;

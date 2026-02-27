@@ -9,23 +9,23 @@ requireFaculty();
 $user         = getLoggedInUser();
 $faculty_name = $user['name'];
 $first_name   = explode(' ', $faculty_name)[0];
+$institute_id = $user['institute_id'];
 
-// --- Stats from DB ---
 // Total students
-$students_q = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student'");
+$students_q     = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND institute_id='$institute_id'");
 $total_students = mysqli_fetch_assoc($students_q)['cnt'];
 
 // Classes today
-$today = date('l');
-$classes_q = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM schedule WHERE day_name='$today'");
+$today         = date('l');
+$classes_q     = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM schedule WHERE day_name='$today' AND institute_id='$institute_id'");
 $classes_today = mysqli_fetch_assoc($classes_q)['cnt'];
 
-// Active notices (posted in last 7 days)
-$notices_q = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM notices WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
+// Active notices
+$notices_q      = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM notices WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND institute_id='$institute_id'");
 $active_notices = mysqli_fetch_assoc($notices_q)['cnt'];
 
 // Total subjects
-$subjects_q = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM subjects");
+$subjects_q     = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM subjects WHERE institute_id='$institute_id'");
 $total_subjects = mysqli_fetch_assoc($subjects_q)['cnt'];
 ?>
 <!DOCTYPE html>

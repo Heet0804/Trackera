@@ -230,13 +230,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         .right-panel {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 40px;
-            animation: slideInRight 0.8s ease-out;
-        }
+    width: 520px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 50px 45px;
+    overflow-y: auto;
+    max-height: 100vh;
+}
 
         @keyframes slideInRight {
             from {

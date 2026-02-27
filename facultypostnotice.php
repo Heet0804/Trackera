@@ -1,15 +1,16 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
 requireFaculty();
 
-$user         = getLoggedInUser();
+$user          = getLoggedInUser();
 $faculty_email = $user['email'];
-
-$error   = '';
-$success = '';
+$institute_id  = $user['institute_id'];
+$error         = '';
+$success       = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title    = mysqli_real_escape_string($conn, trim($_POST['title']));
@@ -24,8 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $grade_val    = $grade == 'All'    ? "NULL" : "'$grade'";
         $division_val = $division == 'All' ? "NULL" : "'$division'";
 
-        $ins = "INSERT INTO notices (title, message, date, posted_by, created_at)
-                VALUES ('$title', '$message', '$date', '$faculty_email', NOW())";
+        $ins = "INSERT INTO notices (title, message, date, posted_by, institute_id, created_at)
+                VALUES ('$title', '$message', '$date', '$faculty_email', '$institute_id', NOW())";
 
         if (mysqli_query($conn, $ins)) {
             $success = "Notice posted successfully!";
@@ -35,8 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Fetch recent notices
-$notices_q = mysqli_query($conn, "SELECT title, message, date, posted_by FROM notices ORDER BY created_at DESC LIMIT 10");
+$notices_q = mysqli_query($conn, "SELECT title, message, date, posted_by FROM notices WHERE institute_id='$institute_id' ORDER BY created_at DESC LIMIT 10");
 ?>
 <!DOCTYPE html>
 <html lang="en">

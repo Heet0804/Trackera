@@ -1,14 +1,11 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 
-$error = '';
-$redirect_to_register = false;
-
-// If already logged in, redirect to appropriate dashboard
+// If already logged in redirect
 if (isset($_SESSION['user_id'])) {
-    $role = $_SESSION['role'];
-    if ($role === 'student') {
+    if ($_SESSION['role'] === 'student') {
         header("Location: studentdashboard.php");
     } else {
         header("Location: facultydashboard.php");
@@ -16,80 +13,90 @@ if (isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Handle login form submission
+$error = '';
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $email = mysqli_real_escape_string($conn, trim($_POST['email']));
+    $email    = mysqli_real_escape_string($conn, strtolower(trim($_POST['email'])));
     $password = $_POST['password'];
-    
-    // Check if this is a student or faculty based on email
-    $is_student = (strpos($email, '08@') !== false);
-    
-    // Query database for user
-    $query = "SELECT * FROM users WHERE email = '$email'";
-    $result = mysqli_query($conn, $query);
-    
-    if ($result && mysqli_num_rows($result) > 0) {
-        // User exists - verify password
-        $user = mysqli_fetch_assoc($result);
-        
-        if (password_verify($password, $user['password'])) {
-            // Correct password - set session and login
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['name'] = $user['name'];
-            $_SESSION['email'] = $user['email'];
-            $_SESSION['grade'] = $user['grade'];
-            $_SESSION['division'] = $user['division'];
-            $_SESSION['roll_no'] = $user['roll_no'];
-            $_SESSION['role'] = $is_student ? 'student' : 'faculty';
-            
-            // Redirect to appropriate dashboard
-            if ($is_student) {
-                header("Location: studentdashboard.php");
-            } else {
-                header("Location: facultydashboard.php");
-            }
-            exit();
-        } else {
-            // Wrong password
-            $error = "Invalid credentials. Please enter the correct password.";
-        }
+
+    // Check if student or faculty by email format
+    // Students have 08 before @ e.g. heet.lakhani08@school.ac.in
+    $is_student = preg_match('/08@/', $email);
+
+    // Get domain from email
+    $email_parts  = explode('@', $email);
+    $email_domain = $email_parts[1] ?? '';
+
+    // Find institute by domain
+    $inst_q = mysqli_query($conn, "SELECT id, name FROM institutes WHERE email_domain='$email_domain'");
+
+    if (mysqli_num_rows($inst_q) == 0) {
+        $error = "No institute found for this email domain! Please ask your institute to register on Trackera first.";
     } else {
-        // User doesn't exist
-        if ($is_student) {
-            // Student not found - redirect to registration
-            $redirect_to_register = true;
-            $error = "Account not found. Redirecting to registration...";
-            header("refresh:2;url=registration.php");
-        } else {
-            // Faculty first time login - auto-create account
-            // Extract name from email: raj.sharma@college.in → Raj Sharma
-            $email_parts = explode('@', $email);
-            $name_part = $email_parts[0]; // raj.sharma
-            $name_words = explode('.', $name_part); // [raj, sharma]
-            $formatted_name = ucwords(implode(' ', $name_words)); // Raj Sharma
-            
-            // Hash the password
-            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            
-            // Insert faculty into database
-            $insert_query = "INSERT INTO users (name, email, password, role, created_at) 
-                           VALUES ('$formatted_name', '$email', '$hashed_password', 'faculty', NOW())";
-            
-            if (mysqli_query($conn, $insert_query)) {
-                // Get the newly created user ID
-                $user_id = mysqli_insert_id($conn);
-                
-                // Set session variables
-                $_SESSION['user_id'] = $user_id;
-                $_SESSION['name'] = $formatted_name;
-                $_SESSION['email'] = $email;
-                $_SESSION['role'] = 'faculty';
-                
-                // Redirect to faculty dashboard
-                header("Location: facultydashboard.php");
+        $institute      = mysqli_fetch_assoc($inst_q);
+        $institute_id   = $institute['id'];
+        $institute_name = $institute['name'];
+
+        // Check if user exists
+        $query  = "SELECT * FROM users WHERE email='$email' AND institute_id='$institute_id'";
+        $result = mysqli_query($conn, $query);
+
+        if ($result && mysqli_num_rows($result) > 0) {
+            // User exists — verify password
+            $user = mysqli_fetch_assoc($result);
+
+            if (password_verify($password, $user['password'])) {
+                $_SESSION['user_id']        = $user['user_id'];
+                $_SESSION['name']           = $user['name'];
+                $_SESSION['email']          = $user['email'];
+                $_SESSION['role']           = $is_student ? 'student' : 'faculty';
+                $_SESSION['grade']          = $user['grade'];
+                $_SESSION['division']       = $user['division'];
+                $_SESSION['roll_no']        = $user['roll_no'];
+                $_SESSION['institute_id']   = $institute_id;
+                $_SESSION['institute_name'] = $institute_name;
+
+                if ($is_student) {
+                    header("Location: studentdashboard.php");
+                } else {
+                    header("Location: facultydashboard.php");
+                }
                 exit();
             } else {
-                $error = "Error creating faculty account: " . mysqli_error($conn);
+                $error = "Invalid credentials. Please enter the correct password.";
+            }
+        } else {
+            if ($is_student) {
+                // Student not found — redirect to registration
+                $error = "Account not found. Redirecting to registration...";
+                header("refresh:2;url=registration.php");
+            } else {
+                // Faculty first time login — auto create account
+                $email_parts    = explode('@', $email);
+                $name_part      = $email_parts[0];
+                $name_words     = explode('.', $name_part);
+                $formatted_name = ucwords(implode(' ', $name_words));
+
+                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+                $insert_query = "INSERT INTO users (name, email, password, role, institute_id, created_at)
+                                 VALUES ('$formatted_name', '$email', '$hashed_password', 'faculty', '$institute_id', NOW())";
+
+                if (mysqli_query($conn, $insert_query)) {
+                    $user_id = mysqli_insert_id($conn);
+
+                    $_SESSION['user_id']        = $user_id;
+                    $_SESSION['name']           = $formatted_name;
+                    $_SESSION['email']          = $email;
+                    $_SESSION['role']           = 'faculty';
+                    $_SESSION['institute_id']   = $institute_id;
+                    $_SESSION['institute_name'] = $institute_name;
+
+                    header("Location: facultydashboard.php");
+                    exit();
+                } else {
+                    $error = "Error creating faculty account: " . mysqli_error($conn);
+                }
             }
         }
     }
@@ -121,15 +128,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         body {
-            font-family: 'Poppins', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 100%);
-            background-size: 400% 400%;
-            animation: gradientShift 15s ease infinite;
-        }
+    font-family: 'Poppins', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    position: relative;
+    overflow-x: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+}
 
         @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -276,13 +283,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         .right-panel {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 40px;
-            animation: slideInRight 0.8s ease-out;
-        }
+    width: 520px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 50px 45px 40px 45px;
+    overflow-y: auto;
+    height: 100vh;
+}
 
         @keyframes slideInRight {
             from {
@@ -296,16 +305,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 30px;
-            padding: 50px 45px;
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
-            width: 100%;
-            max-width: 450px;
-            position: relative;
-            overflow: hidden;
-        }
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 30px;
+    padding: 50px 45px 40px 45px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 450px;
+    position: relative;
+    overflow: visible;
+}
 
         .login-card::before {
             content: '';
@@ -541,12 +550,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
 
                 <?php if ($error): ?>
-                    <?php if ($redirect_to_register): ?>
-                        <div class="success-message"><?php echo $error; ?></div>
-                    <?php else: ?>
-                        <div class="error-message"><?php echo $error; ?></div>
-                    <?php endif; ?>
-                <?php endif; ?>
+    <div class="error-message"><?php echo $error; ?></div>
+<?php endif; ?>
 
                 <form method="POST" action="">
                     <div class="form-group">

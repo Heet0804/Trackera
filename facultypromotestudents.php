@@ -1,30 +1,29 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
 
 requireFaculty();
 
-$error   = '';
-$success = '';
+$user         = getLoggedInUser();
+$institute_id = $user['institute_id'];
+$error        = '';
+$success      = '';
 
-// Get current and next academic year
-$yr_q = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 LIMIT 1");
-$yr   = mysqli_fetch_assoc($yr_q);
+$yr_q         = mysqli_query($conn, "SELECT year FROM academic_year WHERE is_current=1 AND institute_id='$institute_id' LIMIT 1");
+$yr           = mysqli_fetch_assoc($yr_q);
 $current_year = $yr ? $yr['year'] : date('Y') . '-' . (date('Y') + 1);
 
-// Calculate next year
 $parts     = explode('-', $current_year);
 $next_year = ($parts[0] + 1) . '-' . ($parts[1] + 1);
 
-// Get student counts per grade
 $grade_counts = [];
 for ($g = 1; $g <= 10; $g++) {
-    $cq = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND grade='$g'");
+    $cq = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND grade='$g' AND institute_id='$institute_id'");
     $grade_counts[$g] = mysqli_fetch_assoc($cq)['cnt'];
 }
 
-// Handle Promotion
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['promote'])) {
     $grade = (int) $_POST['grade'];
 
@@ -32,32 +31,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['promote'])) {
         $error = "Please select a grade to promote!";
     } else {
         if ($grade == 10) {
-            // Grade 10 → mark as passed out (grade = 11 or delete - here we set grade=11 as "passed out")
-            $res = mysqli_query($conn, "UPDATE users SET grade=11, division=NULL, roll_no=NULL WHERE role='student' AND grade=10");
+            $res   = mysqli_query($conn, "UPDATE users SET grade=11, division=NULL, roll_no=NULL WHERE role='student' AND grade=10 AND institute_id='$institute_id'");
             $count = mysqli_affected_rows($conn);
-            $success = "✅ $count Grade 10 students have been marked as Passed Out!";
+            $success = "✅ $count Grade 10 students marked as Passed Out!";
         } else {
-            // Promote grade X to X+1, reset division and roll_no
             $next_grade = $grade + 1;
-
-            // For Grade 7→8: clear division (will be re-assigned based on language)
-            // For others: clear division and roll_no too (fresh assignment)
-            $res = mysqli_query($conn, "UPDATE users SET grade='$next_grade', division=NULL, roll_no=NULL WHERE role='student' AND grade='$grade'");
-            $count = mysqli_affected_rows($conn);
-            $success = "✅ $count students promoted from Grade $grade to Grade $next_grade! Divisions and roll numbers have been reset.";
+            $res        = mysqli_query($conn, "UPDATE users SET grade='$next_grade', division=NULL, roll_no=NULL WHERE role='student' AND grade='$grade' AND institute_id='$institute_id'");
+            $count      = mysqli_affected_rows($conn);
+            $success    = "✅ $count students promoted from Grade $grade to Grade $next_grade!";
         }
 
-        // Update academic year to next year
         if (isset($_POST['update_year']) && $_POST['update_year'] == '1') {
-            mysqli_query($conn, "UPDATE academic_year SET is_current=0 WHERE is_current=1");
-            mysqli_query($conn, "INSERT INTO academic_year (year, is_current) VALUES ('$next_year', 1)
+            mysqli_query($conn, "UPDATE academic_year SET is_current=0 WHERE is_current=1 AND institute_id='$institute_id'");
+            mysqli_query($conn, "INSERT INTO academic_year (year, is_current, institute_id) VALUES ('$next_year', 1, '$institute_id')
                                  ON DUPLICATE KEY UPDATE is_current=1");
             $success .= " Academic year updated to $next_year.";
         }
 
-        // Refresh counts
         for ($g = 1; $g <= 10; $g++) {
-            $cq = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND grade='$g'");
+            $cq = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM users WHERE role='student' AND grade='$g' AND institute_id='$institute_id'");
             $grade_counts[$g] = mysqli_fetch_assoc($cq)['cnt'];
         }
     }

@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 // Start session if not already started
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
@@ -50,15 +51,17 @@ function getLoggedInUser() {
     if (!isLoggedIn()) {
         return null;
     }
-    
+
     return [
-        'user_id' => $_SESSION['user_id'],
-        'name' => $_SESSION['name'],
-        'email' => $_SESSION['email'],
-        'role' => $_SESSION['role'],
-        'grade' => $_SESSION['grade'] ?? null,
-        'division' => $_SESSION['division'] ?? null,
-        'roll_no' => $_SESSION['roll_no'] ?? null
+        'user_id'        => $_SESSION['user_id'],
+        'name'           => $_SESSION['name'],
+        'email'          => $_SESSION['email'],
+        'role'           => $_SESSION['role'],
+        'grade'          => $_SESSION['grade']          ?? null,
+        'division'       => $_SESSION['division']       ?? null,
+        'roll_no'        => $_SESSION['roll_no']        ?? null,
+        'institute_id'   => $_SESSION['institute_id']   ?? null,
+        'institute_name' => $_SESSION['institute_name'] ?? null,
     ];
 }
 ?>

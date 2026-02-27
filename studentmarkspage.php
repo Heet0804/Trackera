@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 require_once 'session_helper.php';
@@ -9,28 +10,27 @@ $user          = getLoggedInUser();
 $student_email = $user['email'];
 $student_name  = $user['name'];
 $grade         = $user['grade'];
+$institute_id  = $user['institute_id'];
 
 // Get all subjects for this student's grade
-$subjects_q = mysqli_query($conn, "SELECT DISTINCT subject_name FROM subjects WHERE grade='$grade' ORDER BY subject_name ASC");
-$subjects = [];
+$subjects_q = mysqli_query($conn, "SELECT DISTINCT subject_name FROM subjects WHERE grade='$grade' AND institute_id='$institute_id' ORDER BY subject_name ASC");
+$subjects   = [];
 while ($row = mysqli_fetch_assoc($subjects_q)) {
     $subjects[] = $row['subject_name'];
 }
 
-// Selected subject from URL
 $selected_subject = isset($_GET['subject']) ? mysqli_real_escape_string($conn, $_GET['subject']) : ($subjects[0] ?? '');
 
-// Get marks for selected subject
-$marks_data = [];
+$marks_data      = [];
 $total_marks_sum = 0;
-$obtained_sum = 0;
+$obtained_sum    = 0;
 
 if ($selected_subject) {
-    $marks_q = mysqli_query($conn, "SELECT exam_type, marks_obtained, total_marks FROM marks WHERE student_email='$student_email' AND subject='$selected_subject' ORDER BY created_at ASC");
+    $marks_q = mysqli_query($conn, "SELECT exam_type, marks_obtained, total_marks FROM marks WHERE student_email='$student_email' AND subject='$selected_subject' AND institute_id='$institute_id' ORDER BY created_at ASC");
     while ($row = mysqli_fetch_assoc($marks_q)) {
-        $percent = $row['total_marks'] > 0 ? round(($row['marks_obtained'] / $row['total_marks']) * 100) : 0;
-        $row['percent'] = $percent;
-        $marks_data[] = $row;
+        $percent         = $row['total_marks'] > 0 ? round(($row['marks_obtained'] / $row['total_marks']) * 100) : 0;
+        $row['percent']  = $percent;
+        $marks_data[]    = $row;
         $total_marks_sum += $row['total_marks'];
         $obtained_sum    += $row['marks_obtained'];
     }
