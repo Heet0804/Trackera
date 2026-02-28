@@ -39,23 +39,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $student_prefix = explode('@', $student_email_format)[0]; // e.g. "firstname.lastname08" or "gch123"
         $faculty_prefix = explode('@', $faculty_email_format)[0]; // e.g. "firstname.lastname"
 
-        // Find student identifier by comparing student prefix vs faculty prefix from the end
-        $s_rev          = strrev($student_prefix);
-        $f_rev          = strrev($faculty_prefix);
-        $identifier_rev = '';
-        for ($i = 0; $i < strlen($s_rev); $i++) {
-            if (!isset($f_rev[$i]) || $s_rev[$i] !== $f_rev[$i]) {
-                $identifier_rev .= $s_rev[$i];
+        // Find common base between student and faculty prefix
+        // e.g. student: gch123, faculty: gch → base = gch, student has extra chars after
+        // e.g. student: firstname.lastname08, faculty: firstname.lastname → base = firstname.lastname, suffix = 08
+        $common_base = '';
+        for ($i = 0; $i < min(strlen($student_prefix), strlen($faculty_prefix)); $i++) {
+            if ($student_prefix[$i] === $faculty_prefix[$i]) {
+                $common_base .= $student_prefix[$i];
             } else {
                 break;
             }
         }
-        $student_identifier = strrev($identifier_rev); // e.g. "08", "123", "s"
 
-        // Determine if student or faculty based on identifier
+        $faculty_suffix_pattern = substr($faculty_prefix, strlen($common_base)); // usually ""
+        $student_suffix_pattern = substr($student_prefix, strlen($common_base)); // e.g. "08", "123"
+
+        // Determine if student or faculty
         $is_student = false;
-        if (!empty($student_identifier)) {
-            $is_student = (substr($email_prefix, -strlen($student_identifier)) === $student_identifier);
+        if (empty($faculty_suffix_pattern)) {
+            // Faculty prefix is the base — student just has extra chars after base
+            // e.g. gch (faculty) vs gch123 (student)
+            if (strpos($email_prefix, $common_base) === 0 && strlen($email_prefix) > strlen($faculty_prefix)) {
+                $is_student = true;
+            }
+        } else {
+            // Both have different suffixes — student ends with student_suffix_pattern
+            // e.g. firstname.lastname08 vs firstname.lastname
+            $is_student = (substr($email_prefix, -strlen($student_suffix_pattern)) === $student_suffix_pattern);
         }
 
         // Check if user exists
