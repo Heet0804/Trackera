@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $phone                = mysqli_real_escape_string($conn, trim($_POST['phone']));
     $address              = mysqli_real_escape_string($conn, trim($_POST['address']));
     $type                 = mysqli_real_escape_string($conn, $_POST['type']);
+    $student_prefix       = mysqli_real_escape_string($conn, strtolower(trim($_POST['student_prefix'])));
     $student_email_format = mysqli_real_escape_string($conn, strtolower(trim($_POST['student_email_format'])));
     $faculty_email_format = mysqli_real_escape_string($conn, strtolower(trim($_POST['faculty_email_format'])));
     $password             = $_POST['password'];
@@ -29,12 +30,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Please enter a valid contact email address.";
     } elseif (empty($phone)) {
         $error = "Please enter a contact number.";
+    } elseif (empty($student_prefix)) {
+        $error = "Please enter the student email prefix (e.g. gch).";
     } elseif (empty($student_email_format) || strpos($student_email_format, '@') === false) {
-        $error = "Please enter a valid student email format (must contain @).";
+        $error = "Please enter a valid student email example (must contain @).";
     } elseif (empty($faculty_email_format) || strpos($faculty_email_format, '@') === false) {
-        $error = "Please enter a valid faculty email format (must contain @).";
+        $error = "Please enter a valid faculty email example (must contain @).";
     } elseif (empty($email_domain)) {
-        $error = "Could not extract domain from student email format.";
+        $error = "Could not extract domain from student email example.";
     } elseif (!in_array($type, ['School', 'College', 'Tutorial'])) {
         $error = "Please select a valid institute type.";
     } elseif (strlen($password) < 6) {
@@ -51,8 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $error = "This email domain is already registered!";
             } else {
                 $hashed = password_hash($password, PASSWORD_DEFAULT);
-                $ins = "INSERT INTO institutes (name, email, password, phone, address, type, email_domain, student_email_format, faculty_email_format, created_at)
-                        VALUES ('$name', '$email', '$hashed', '$phone', '$address', '$type', '$email_domain', '$student_email_format', '$faculty_email_format', NOW())";
+                $ins = "INSERT INTO institutes (name, email, password, phone, address, type, email_domain, student_prefix, student_email_format, faculty_email_format, created_at)
+                        VALUES ('$name', '$email', '$hashed', '$phone', '$address', '$type', '$email_domain', '$student_prefix', '$student_email_format', '$faculty_email_format', NOW())";
                 if (mysqli_query($conn, $ins)) {
                     $success = "Institute registered successfully! Your students and faculty can now login using their respective email formats.";
                 } else {
@@ -448,31 +451,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <!-- Warning Box -->
                 <div class="warning-box">
                     <strong>⚠️ Important — Email Format Requirements:</strong><br><br>
-                    Enter the <strong>generalized format</strong> of email IDs used by your institute.<br><br>
-                    The system will use these formats to automatically identify whether a user is a <strong>Student</strong> or <strong>Faculty</strong> during login.<br><br>
-                    Examples:<br>
-                    👨‍🎓 Student: <code>firstname.lastname08@sunshine.ac.in</code> or <code>gch123@sunshine.ac.in</code><br>
-                    👨‍🏫 Faculty: <code>firstname.lastname@sunshine.ac.in</code>
+                    The system uses email format to automatically identify <strong>Students</strong> vs <strong>Faculty</strong> during login.<br><br>
+                    👨‍🎓 <strong>Student Prefix:</strong> The starting characters of all student emails (e.g. <code>gch</code> for <code>gch123@domain.com</code>)<br><br>
+                    👨‍🏫 <strong>Faculty emails</strong> are anything that does NOT start with the student prefix.
                 </div>
 
-                <!-- Student Email Format -->
+                <!-- Student Prefix -->
                 <div class="form-group">
-                    <label>Student Email Format:</label>
+                    <label>Student Email Prefix:</label>
+                    <input type="text" name="student_prefix"
+                           placeholder="e.g. gch"
+                           value="<?php echo isset($_POST['student_prefix']) ? htmlspecialchars($_POST['student_prefix']) : ''; ?>"
+                           required>
+                    <div class="domain-hint">💡 Enter the starting characters of all student emails. e.g. if student email is <strong>gch123@domain.com</strong> enter <strong>gch</strong></div>
+                </div>
+
+                <!-- Student Email Example -->
+                <div class="form-group">
+                    <label>Student Email Example:</label>
                     <input type="text" name="student_email_format"
-                           placeholder="e.g. firstname.lastname08@sunshine.ac.in"
+                           placeholder="e.g. gch123@sunshine.ac.in"
                            value="<?php echo isset($_POST['student_email_format']) ? htmlspecialchars($_POST['student_email_format']) : ''; ?>"
                            required>
-                    <div class="domain-hint">💡 Enter a generalized example of how your <strong>student emails</strong> look. The domain will be extracted automatically.</div>
+                    <div class="domain-hint">💡 Enter one full example of a student email. The domain will be extracted automatically.</div>
                 </div>
 
-                <!-- Faculty Email Format -->
+                <!-- Faculty Email Example -->
                 <div class="form-group">
-                    <label>Faculty Email Format:</label>
+                    <label>Faculty Email Example:</label>
                     <input type="text" name="faculty_email_format"
-                           placeholder="e.g. firstname.lastname@sunshine.ac.in"
+                           placeholder="e.g. name.surname@sunshine.ac.in"
                            value="<?php echo isset($_POST['faculty_email_format']) ? htmlspecialchars($_POST['faculty_email_format']) : ''; ?>"
                            required>
-                    <div class="domain-hint">💡 Enter a generalized example of how your <strong>faculty emails</strong> look.</div>
+                    <div class="domain-hint">💡 Enter one full example of a faculty email.</div>
                 </div>
 
                 <!-- Email and Phone -->

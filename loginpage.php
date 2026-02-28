@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email_domain = $email_parts[1] ?? '';
 
     // Find institute by domain
-    $inst_q = mysqli_query($conn, "SELECT id, name, student_email_format, faculty_email_format FROM institutes WHERE email_domain='$email_domain'");
+    $inst_q = mysqli_query($conn, "SELECT id, name, student_prefix, student_email_format, faculty_email_format FROM institutes WHERE email_domain='$email_domain'");
 
     if (mysqli_num_rows($inst_q) == 0) {
         $error = "No institute found for this email domain! Please ask your institute to register on Trackera first.";
@@ -32,41 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $institute            = mysqli_fetch_assoc($inst_q);
         $institute_id         = $institute['id'];
         $institute_name       = $institute['name'];
+        $student_prefix       = $institute['student_prefix'];
         $student_email_format = $institute['student_email_format'];
         $faculty_email_format = $institute['faculty_email_format'];
 
-        // Extract prefixes from stored formats
-        $student_prefix = explode('@', $student_email_format)[0]; // e.g. "firstname.lastname08" or "gch123"
-        $faculty_prefix = explode('@', $faculty_email_format)[0]; // e.g. "firstname.lastname"
-
-        // Find common base between student and faculty prefix
-        // e.g. student: gch123, faculty: gch → base = gch, student has extra chars after
-        // e.g. student: firstname.lastname08, faculty: firstname.lastname → base = firstname.lastname, suffix = 08
-        $common_base = '';
-        for ($i = 0; $i < min(strlen($student_prefix), strlen($faculty_prefix)); $i++) {
-            if ($student_prefix[$i] === $faculty_prefix[$i]) {
-                $common_base .= $student_prefix[$i];
-            } else {
-                break;
-            }
-        }
-
-        $faculty_suffix_pattern = substr($faculty_prefix, strlen($common_base)); // usually ""
-        $student_suffix_pattern = substr($student_prefix, strlen($common_base)); // e.g. "08", "123"
-
-        // Determine if student or faculty
-        $is_student = false;
-        if (empty($faculty_suffix_pattern)) {
-            // Faculty prefix is the base — student just has extra chars after base
-            // e.g. gch (faculty) vs gch123 (student)
-            if (strpos($email_prefix, $common_base) === 0 && strlen($email_prefix) > strlen($faculty_prefix)) {
-                $is_student = true;
-            }
-        } else {
-            // Both have different suffixes — student ends with student_suffix_pattern
-            // e.g. firstname.lastname08 vs firstname.lastname
-            $is_student = (substr($email_prefix, -strlen($student_suffix_pattern)) === $student_suffix_pattern);
-        }
+        // Simple detection — if email prefix starts with student_prefix → student, else → faculty
+        $is_student = (strpos($email_prefix, $student_prefix) === 0 && strlen($email_prefix) > strlen($student_prefix));
 
         // Check if user exists
         $result = mysqli_query($conn, "SELECT * FROM users WHERE email='$email' AND institute_id='$institute_id'");
