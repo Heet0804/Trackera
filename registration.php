@@ -3,7 +3,6 @@ header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 
-// If already logged in, redirect
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['role'] === 'student') {
         header("Location: studentdashboard.php");
@@ -17,7 +16,7 @@ $error   = '';
 $success = '';
 
 // Fetch all institutes for dropdown
-$institutes_q = mysqli_query($conn, "SELECT id, name, email_domain FROM institutes ORDER BY name ASC");
+$institutes_q = mysqli_query($conn, "SELECT id, name, email_domain, student_email_format FROM institutes ORDER BY name ASC");
 $institutes   = [];
 while ($row = mysqli_fetch_assoc($institutes_q)) {
     $institutes[] = $row;
@@ -31,8 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $gender       = mysqli_real_escape_string($conn, $_POST['gender']);
     $institute_id = (int)$_POST['institute_id'];
 
-    // Get institute domain
-    $inst_q = mysqli_query($conn, "SELECT id, name, email_domain FROM institutes WHERE id='$institute_id'");
+    // Get institute info
+    $inst_q = mysqli_query($conn, "SELECT id, name, email_domain, student_email_format FROM institutes WHERE id='$institute_id'");
     $inst   = mysqli_fetch_assoc($inst_q);
     $domain = $inst['email_domain'] ?? '';
 
@@ -40,23 +39,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!$institute_id || !$inst) {
         $error = "Please select your institute!";
     }
-    // Validate email format dynamically based on institute domain
-    elseif (!preg_match('/^[a-zA-Z]+\.[a-zA-Z]+08@' . preg_quote($domain, '/') . '$/', $email)) {
-        $error = "Invalid email format! Must be firstname.lastname08@$domain (e.g. heet.lakhani08@$domain)";
+    // Validate email domain matches institute
+    elseif (explode('@', $email)[1] !== $domain) {
+        $error = "Invalid email! Your email must end with @$domain";
     }
     // Check duplicate email
     elseif (mysqli_num_rows(mysqli_query($conn, "SELECT user_id FROM users WHERE email='$email'")) > 0) {
         $error = "This email is already registered. Please login.";
     }
-    // Validate name
     elseif (empty($name)) {
         $error = "Please enter your full name.";
     }
-    // Validate grade
     elseif ($grade < 1 || $grade > 10) {
         $error = "Please select a valid grade.";
     }
-    // Validate gender
     elseif (!in_array($gender, ['Male', 'Female'])) {
         $error = "Please select a valid gender.";
     }
@@ -117,11 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <title>Trackera - Registration</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
             --primary: #2c3e50;
@@ -139,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             min-height: 100vh;
             display: flex;
             position: relative;
-            overflow: hidden;
+            overflow-x: hidden;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 100%);
             background-size: 400% 400%;
             animation: gradientShift 15s ease infinite;
@@ -158,26 +150,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             animation: float 20s infinite ease-in-out;
         }
 
-        .decoration-1 {
-            width: 300px; height: 300px;
-            background: white;
-            top: -100px; left: -100px;
-            animation-delay: 0s;
-        }
-
-        .decoration-2 {
-            width: 200px; height: 200px;
-            background: #3498db;
-            bottom: -50px; right: 10%;
-            animation-delay: 5s;
-        }
-
-        .decoration-3 {
-            width: 150px; height: 150px;
-            background: #e74c3c;
-            top: 20%; right: -75px;
-            animation-delay: 10s;
-        }
+        .decoration-1 { width: 300px; height: 300px; background: white; top: -100px; left: -100px; animation-delay: 0s; }
+        .decoration-2 { width: 200px; height: 200px; background: #3498db; bottom: -50px; right: 10%; animation-delay: 5s; }
+        .decoration-3 { width: 150px; height: 150px; background: #e74c3c; top: 20%; right: -75px; animation-delay: 10s; }
 
         @keyframes float {
             0%, 100% { transform: translate(0, 0) scale(1); }
@@ -204,12 +179,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             padding: 60px;
             color: white;
             text-align: center;
-            animation: slideInLeft 0.8s ease-out;
-        }
-
-        @keyframes slideInLeft {
-            from { opacity: 0; transform: translateX(-50px); }
-            to   { opacity: 1; transform: translateX(0); }
         }
 
         .logo {
@@ -229,13 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             line-height: 1.6;
         }
 
-        .features {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            width: 100%;
-            max-width: 350px;
-        }
+        .features { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 350px; }
 
         .feature-item {
             display: flex;
@@ -249,37 +212,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         .feature-icon { font-size: 28px; }
-
-        .feature-item span {
-            font-size: 14px;
-            opacity: 0.9;
-        }
+        .feature-item span { font-size: 14px; opacity: 0.9; }
 
         .right-panel {
-    width: 520px;
-    background: white;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding: 50px 45px;
-    overflow-y: auto;
-    max-height: 100vh;
-}
-
-        @keyframes slideInRight {
-            from { opacity: 0; transform: translateX(50px); }
-            to   { opacity: 1; transform: translateX(0); }
+            width: 550px;
+            min-height: 100vh;
+            background: rgba(255,255,255,0.95);
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 40px;
+            overflow-y: auto;
+            height: 100vh;
         }
 
-        .login-card {
-            width: 100%;
-            max-width: 450px;
-        }
+        .login-card { width: 100%; max-width: 450px; }
 
-        .login-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+        .login-header { text-align: center; margin-bottom: 30px; }
 
         .login-header h2 {
             font-size: 36px;
@@ -288,10 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             margin-bottom: 8px;
         }
 
-        .login-header p {
-            color: var(--text-muted);
-            font-size: 15px;
-        }
+        .login-header p { color: var(--text-muted); font-size: 15px; }
 
         .info-note {
             background: #fff3cd;
@@ -303,9 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             margin-bottom: 20px;
         }
 
-        .form-group {
-            margin-bottom: 20px;
-        }
+        .form-group { margin-bottom: 20px; }
 
         .form-group label {
             display: block;
@@ -357,11 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             padding: 0;
         }
 
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 
         .email-hint {
             font-size: 12px;
@@ -419,9 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .divider::before { left: 0; }
         .divider::after  { right: 0; }
 
-        .login-link {
-            text-align: center;
-        }
+        .login-link { text-align: center; }
 
         .login-link a {
             color: var(--secondary);
@@ -434,27 +372,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .login-link a:hover { color: var(--primary); }
 
         .msg-success {
-            display: block;
-            padding: 12px 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            display: block; padding: 12px 15px; border-radius: 10px;
+            margin-bottom: 20px; font-size: 14px; font-weight: 500;
+            background: #d4edda; color: #155724; border: 1px solid #c3e6cb;
         }
 
         .msg-error {
-            display: block;
-            padding: 12px 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            display: block; padding: 12px 15px; border-radius: 10px;
+            margin-bottom: 20px; font-size: 14px; font-weight: 500;
+            background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;
         }
 
         @media (max-width: 1024px) {
@@ -515,8 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
 
                 <div class="info-note">
-                    <strong>📌 Note:</strong>
-                    Division and Roll Number will be assigned to you by your faculty after registration.
+                    <strong>📌 Note:</strong> Division and Roll Number will be assigned to you by your faculty after registration.
                 </div>
 
                 <form method="POST" action="" id="registerForm">
@@ -530,6 +455,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <?php foreach ($institutes as $inst): ?>
                                     <option value="<?php echo $inst['id']; ?>"
                                             data-domain="<?php echo htmlspecialchars($inst['email_domain']); ?>"
+                                            data-format="<?php echo htmlspecialchars($inst['student_email_format']); ?>"
                                             <?php echo (isset($_POST['institute_id']) && $_POST['institute_id'] == $inst['id']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($inst['name']); ?>
                                     </option>
@@ -555,8 +481,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <label for="email">Email Address</label>
                         <div class="input-wrapper">
                             <input type="email" id="email" name="email" class="form-input"
-                                   placeholder="Select institute first"
-                                   required
+                                   placeholder="Select institute first" required
                                    value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
                             <span class="input-icon">📧</span>
                         </div>
@@ -625,17 +550,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <script>
         function updateEmailHint() {
-            const select = document.getElementById('institute');
-            const domain = select.options[select.selectedIndex]?.dataset.domain;
-            const hint   = document.getElementById('emailHint');
+            const select     = document.getElementById('institute');
+            const option     = select.options[select.selectedIndex];
+            const domain     = option?.dataset.domain;
+            const format     = option?.dataset.format;
+            const hint       = document.getElementById('emailHint');
             const emailInput = document.getElementById('email');
 
-            if (domain) {
-                hint.innerHTML  = '💡 Your email format: <strong>firstname.lastname08@' + domain + '</strong>';
+            if (domain && format) {
+                hint.innerHTML = '💡 Your email format: <strong>' + format + '</strong>';
                 hint.classList.add('show');
-                emailInput.placeholder = 'e.g. firstname.lastname08@' + domain;
+                emailInput.placeholder = format;
             } else {
-                hint.innerHTML  = '';
+                hint.innerHTML = '';
                 hint.classList.remove('show');
                 emailInput.placeholder = 'Select institute first';
             }

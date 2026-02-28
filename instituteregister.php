@@ -7,25 +7,34 @@ $error   = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $name        = mysqli_real_escape_string($conn, trim($_POST['institute_name']));
-    $email       = mysqli_real_escape_string($conn, strtolower(trim($_POST['email'])));
-    $phone       = mysqli_real_escape_string($conn, trim($_POST['phone']));
-    $address     = mysqli_real_escape_string($conn, trim($_POST['address']));
-    $type        = mysqli_real_escape_string($conn, $_POST['type']);
-    $email_domain = mysqli_real_escape_string($conn, strtolower(trim($_POST['email_domain'])));
-    $password    = $_POST['password'];
-    $confirm     = $_POST['confirm_password'];
+    $name                 = mysqli_real_escape_string($conn, trim($_POST['institute_name']));
+    $email                = mysqli_real_escape_string($conn, strtolower(trim($_POST['email'])));
+    $phone                = mysqli_real_escape_string($conn, trim($_POST['phone']));
+    $address              = mysqli_real_escape_string($conn, trim($_POST['address']));
+    $type                 = mysqli_real_escape_string($conn, $_POST['type']);
+    $student_email_format = mysqli_real_escape_string($conn, strtolower(trim($_POST['student_email_format'])));
+    $faculty_email_format = mysqli_real_escape_string($conn, strtolower(trim($_POST['faculty_email_format'])));
+    $password             = $_POST['password'];
+    $confirm              = $_POST['confirm_password'];
+
+    // Extract domain from student email format
+    $email_domain = '';
+    if (strpos($student_email_format, '@') !== false) {
+        $email_domain = explode('@', $student_email_format)[1];
+    }
 
     if (empty($name)) {
         $error = "Please enter your institute name.";
     } elseif (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = "Please enter a valid email address.";
+        $error = "Please enter a valid contact email address.";
     } elseif (empty($phone)) {
         $error = "Please enter a contact number.";
+    } elseif (empty($student_email_format) || strpos($student_email_format, '@') === false) {
+        $error = "Please enter a valid student email format (must contain @).";
+    } elseif (empty($faculty_email_format) || strpos($faculty_email_format, '@') === false) {
+        $error = "Please enter a valid faculty email format (must contain @).";
     } elseif (empty($email_domain)) {
-        $error = "Please enter your institute's email domain.";
-    } elseif (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $email_domain)) {
-        $error = "Please enter a valid email domain (e.g. school.ac.in)";
+        $error = "Could not extract domain from student email format.";
     } elseif (!in_array($type, ['School', 'College', 'Tutorial'])) {
         $error = "Please select a valid institute type.";
     } elseif (strlen($password) < 6) {
@@ -33,21 +42,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif ($password !== $confirm) {
         $error = "Passwords do not match!";
     } else {
-        // Check duplicate email
         $check = mysqli_query($conn, "SELECT id FROM institutes WHERE email='$email'");
         if (mysqli_num_rows($check) > 0) {
-            $error = "This email is already registered!";
+            $error = "This contact email is already registered!";
         } else {
-            // Check duplicate domain
             $check_domain = mysqli_query($conn, "SELECT id FROM institutes WHERE email_domain='$email_domain'");
             if (mysqli_num_rows($check_domain) > 0) {
                 $error = "This email domain is already registered!";
             } else {
                 $hashed = password_hash($password, PASSWORD_DEFAULT);
-                $ins = "INSERT INTO institutes (name, email, password, phone, address, type, email_domain, created_at)
-                        VALUES ('$name', '$email', '$hashed', '$phone', '$address', '$type', '$email_domain', NOW())";
+                $ins = "INSERT INTO institutes (name, email, password, phone, address, type, email_domain, student_email_format, faculty_email_format, created_at)
+                        VALUES ('$name', '$email', '$hashed', '$phone', '$address', '$type', '$email_domain', '$student_email_format', '$faculty_email_format', NOW())";
                 if (mysqli_query($conn, $ins)) {
-                    $success = "Institute registered successfully! Your students and faculty can now select <strong>$name</strong> during login/registration.";
+                    $success = "Institute registered successfully! Your students and faculty can now login using their respective email formats.";
                 } else {
                     $error = "Something went wrong: " . mysqli_error($conn);
                 }
@@ -81,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             min-height: 100vh;
             display: flex;
             position: relative;
-            overflow: hidden;
+            overflow-x: hidden;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 100%);
             background-size: 400% 400%;
             animation: gradientShift 15s ease infinite;
@@ -100,26 +107,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             animation: float 20s infinite ease-in-out;
         }
 
-        .decoration-1 {
-            width: 300px; height: 300px;
-            background: white;
-            top: -100px; left: -100px;
-            animation-delay: 0s;
-        }
-
-        .decoration-2 {
-            width: 200px; height: 200px;
-            background: #3498db;
-            bottom: -50px; right: 10%;
-            animation-delay: 5s;
-        }
-
-        .decoration-3 {
-            width: 150px; height: 150px;
-            background: #e74c3c;
-            top: 20%; right: -75px;
-            animation-delay: 10s;
-        }
+        .decoration-1 { width: 300px; height: 300px; background: white; top: -100px; left: -100px; animation-delay: 0s; }
+        .decoration-2 { width: 200px; height: 200px; background: #3498db; bottom: -50px; right: 10%; animation-delay: 5s; }
+        .decoration-3 { width: 150px; height: 150px; background: #e74c3c; top: 20%; right: -75px; animation-delay: 10s; }
 
         @keyframes float {
             0%, 100% { transform: translate(0, 0) scale(1); }
@@ -205,9 +195,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
-            padding: 50px 45px;
+            padding: 50px 45px 40px 45px;
             overflow-y: auto;
-            max-height: 100vh;
+            height: 100vh;
         }
 
         .right-panel h3 {
@@ -253,45 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-color: var(--secondary);
         }
 
-        .form-group textarea {
-            resize: none;
-            height: 80px;
-        }
-
-        .domain-input-wrapper {
-            display: flex;
-            align-items: center;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-            transition: border-color 0.3s;
-        }
-
-        .domain-input-wrapper:focus-within {
-            border-color: var(--secondary);
-        }
-
-        .domain-prefix {
-            background: #f8f9fa;
-            padding: 13px 15px;
-            font-size: 14px;
-            color: var(--text-muted);
-            border-right: 2px solid #e0e0e0;
-            white-space: nowrap;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .domain-input-wrapper input {
-            border: none !important;
-            border-radius: 0 !important;
-            flex: 1;
-            padding: 13px 15px !important;
-        }
-
-        .domain-input-wrapper input:focus {
-            outline: none;
-            border: none !important;
-        }
+        .form-group textarea { resize: none; height: 80px; }
 
         .domain-hint {
             font-size: 12px;
@@ -389,10 +341,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             color: var(--text-muted);
         }
 
-        .type-option:hover {
-            border-color: #667eea;
-            color: #667eea;
-        }
+        .type-option:hover { border-color: #667eea; color: #667eea; }
 
         .type-option.selected {
             border-color: #667eea;
@@ -402,6 +351,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         .type-option .type-icon { font-size: 24px; margin-bottom: 5px; }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            font-size: 13px;
+            color: #856404;
+        }
 
         @media (max-width: 900px) {
             .left-panel  { display: none; }
@@ -486,28 +445,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                            required>
                 </div>
 
-                <!-- Email Domain -->
-<div class="form-group">
-    <label>Student Email Domain:</label>
-    <div class="domain-input-wrapper">
-        <span class="domain-prefix">studentname08@</span>
-        <input type="text" name="email_domain"
-               placeholder="school.ac.in"
-               value="<?php echo isset($_POST['email_domain']) ? htmlspecialchars($_POST['email_domain']) : ''; ?>">
-    </div>
-    <div class="domain-hint">
-        💡 e.g. if student email is <strong>name.surname08@sunshine.ac.in</strong> then enter <strong>sunshine.ac.in</strong>
-    </div>
-</div>
+                <!-- Warning Box -->
+                <div class="warning-box">
+                    <strong>⚠️ Important — Email Format Requirements:</strong><br><br>
+                    Enter the <strong>generalized format</strong> of email IDs used by your institute.<br><br>
+                    The system will use these formats to automatically identify whether a user is a <strong>Student</strong> or <strong>Faculty</strong> during login.<br><br>
+                    Examples:<br>
+                    👨‍🎓 Student: <code>firstname.lastname08@sunshine.ac.in</code> or <code>gch123@sunshine.ac.in</code><br>
+                    👨‍🏫 Faculty: <code>firstname.lastname@sunshine.ac.in</code>
+                </div>
 
-<!-- Email Format Note -->
-<div style="background:#fff3cd; border:1px solid #ffc107; border-radius:10px; padding:14px 16px; margin-bottom:18px; font-size:13px; color:#856404;">
-    <strong>⚠️ Important — Trackera Email Format Requirements:</strong><br><br>
-    Trackera requires your institute to follow this email format:<br><br>
-    👨‍🎓 <strong>Students:</strong> <code>firstname.lastname08@yourdomain.com</code><br>
-    👨‍🏫 <strong>Faculty:</strong> &nbsp;&nbsp;<code>firstname.lastname@yourdomain.com</code><br><br>
-    The <strong>08</strong> before @ is what Trackera uses to identify students vs faculty. Please make sure your institute follows this format before registering.
-</div>
+                <!-- Student Email Format -->
+                <div class="form-group">
+                    <label>Student Email Format:</label>
+                    <input type="text" name="student_email_format"
+                           placeholder="e.g. firstname.lastname08@sunshine.ac.in"
+                           value="<?php echo isset($_POST['student_email_format']) ? htmlspecialchars($_POST['student_email_format']) : ''; ?>"
+                           required>
+                    <div class="domain-hint">💡 Enter a generalized example of how your <strong>student emails</strong> look. The domain will be extracted automatically.</div>
+                </div>
+
+                <!-- Faculty Email Format -->
+                <div class="form-group">
+                    <label>Faculty Email Format:</label>
+                    <input type="text" name="faculty_email_format"
+                           placeholder="e.g. firstname.lastname@sunshine.ac.in"
+                           value="<?php echo isset($_POST['faculty_email_format']) ? htmlspecialchars($_POST['faculty_email_format']) : ''; ?>"
+                           required>
+                    <div class="domain-hint">💡 Enter a generalized example of how your <strong>faculty emails</strong> look.</div>
+                </div>
 
                 <!-- Email and Phone -->
                 <div class="input-row">
@@ -538,13 +504,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="input-row">
                     <div class="form-group">
                         <label>Password:</label>
-                        <input type="password" name="password"
-                               placeholder="Min 6 characters" required>
+                        <input type="password" name="password" placeholder="Min 6 characters" required>
                     </div>
                     <div class="form-group">
                         <label>Confirm Password:</label>
-                        <input type="password" name="confirm_password"
-                               placeholder="Repeat password" required>
+                        <input type="password" name="confirm_password" placeholder="Repeat password" required>
                     </div>
                 </div>
 

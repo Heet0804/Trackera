@@ -3,7 +3,8 @@ header('Content-Type: text/html; charset=UTF-8');
 session_start();
 require_once 'db_connect.php';
 
-// If already logged in redirect
+$error = '';
+
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['role'] === 'student') {
         header("Location: studentdashboard.php");
@@ -13,36 +14,54 @@ if (isset($_SESSION['user_id'])) {
     exit();
 }
 
-$error = '';
-
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email    = mysqli_real_escape_string($conn, strtolower(trim($_POST['email'])));
     $password = $_POST['password'];
 
-    // Check if student or faculty by email format
-    // Students have 08 before @ e.g. heet.lakhani08@school.ac.in
-    $is_student = preg_match('/08@/', $email);
-
-    // Get domain from email
+    // Extract domain from email
     $email_parts  = explode('@', $email);
+    $email_prefix = $email_parts[0];
     $email_domain = $email_parts[1] ?? '';
 
     // Find institute by domain
-    $inst_q = mysqli_query($conn, "SELECT id, name FROM institutes WHERE email_domain='$email_domain'");
+    $inst_q = mysqli_query($conn, "SELECT id, name, student_email_format, faculty_email_format FROM institutes WHERE email_domain='$email_domain'");
 
     if (mysqli_num_rows($inst_q) == 0) {
         $error = "No institute found for this email domain! Please ask your institute to register on Trackera first.";
     } else {
-        $institute      = mysqli_fetch_assoc($inst_q);
-        $institute_id   = $institute['id'];
-        $institute_name = $institute['name'];
+        $institute            = mysqli_fetch_assoc($inst_q);
+        $institute_id         = $institute['id'];
+        $institute_name       = $institute['name'];
+        $student_email_format = $institute['student_email_format'];
+        $faculty_email_format = $institute['faculty_email_format'];
+
+        // Extract prefixes from stored formats
+        $student_prefix = explode('@', $student_email_format)[0]; // e.g. "firstname.lastname08" or "gch123"
+        $faculty_prefix = explode('@', $faculty_email_format)[0]; // e.g. "firstname.lastname"
+
+        // Find student identifier by comparing student prefix vs faculty prefix from the end
+        $s_rev          = strrev($student_prefix);
+        $f_rev          = strrev($faculty_prefix);
+        $identifier_rev = '';
+        for ($i = 0; $i < strlen($s_rev); $i++) {
+            if (!isset($f_rev[$i]) || $s_rev[$i] !== $f_rev[$i]) {
+                $identifier_rev .= $s_rev[$i];
+            } else {
+                break;
+            }
+        }
+        $student_identifier = strrev($identifier_rev); // e.g. "08", "123", "s"
+
+        // Determine if student or faculty based on identifier
+        $is_student = false;
+        if (!empty($student_identifier)) {
+            $is_student = (substr($email_prefix, -strlen($student_identifier)) === $student_identifier);
+        }
 
         // Check if user exists
-        $query  = "SELECT * FROM users WHERE email='$email' AND institute_id='$institute_id'";
-        $result = mysqli_query($conn, $query);
+        $result = mysqli_query($conn, "SELECT * FROM users WHERE email='$email' AND institute_id='$institute_id'");
 
         if ($result && mysqli_num_rows($result) > 0) {
-            // User exists — verify password
             $user = mysqli_fetch_assoc($result);
 
             if (password_verify($password, $user['password'])) {
@@ -67,16 +86,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         } else {
             if ($is_student) {
-                // Student not found — redirect to registration
                 $error = "Account not found. Redirecting to registration...";
                 header("refresh:2;url=registration.php");
             } else {
                 // Faculty first time login — auto create account
-                $email_parts    = explode('@', $email);
-                $name_part      = $email_parts[0];
-                $name_words     = explode('.', $name_part);
+                $name_words     = explode('.', $email_prefix);
                 $formatted_name = ucwords(implode(' ', $name_words));
-
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
                 $insert_query = "INSERT INTO users (name, email, password, role, institute_id, created_at)
@@ -128,15 +143,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         body {
-    font-family: 'Poppins', sans-serif;
-    min-height: 100vh;
-    display: flex;
-    position: relative;
-    overflow-x: hidden;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 100%);
-    background-size: 400% 400%;
-    animation: gradientShift 15s ease infinite;
-}
+            font-family: 'Poppins', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            position: relative;
+            overflow-x: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
 
         @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -152,29 +167,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         .decoration-1 {
-            width: 300px;
-            height: 300px;
+            width: 300px; height: 300px;
             background: white;
-            top: -100px;
-            left: -100px;
+            top: -100px; left: -100px;
             animation-delay: 0s;
         }
 
         .decoration-2 {
-            width: 200px;
-            height: 200px;
+            width: 200px; height: 200px;
             background: #3498db;
-            bottom: -50px;
-            right: 10%;
+            bottom: -50px; right: 10%;
             animation-delay: 5s;
         }
 
         .decoration-3 {
-            width: 150px;
-            height: 150px;
+            width: 150px; height: 150px;
             background: #e74c3c;
-            top: 20%;
-            right: -75px;
+            top: 20%; right: -75px;
             animation-delay: 10s;
         }
 
@@ -207,14 +216,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         @keyframes slideInLeft {
-            from {
-                opacity: 0;
-                transform: translateX(-50px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
+            from { opacity: 0; transform: translateX(-50px); }
+            to   { opacity: 1; transform: translateX(0); }
         }
 
         .logo {
@@ -222,20 +225,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-size: 72px;
             font-weight: 900;
             margin-bottom: 20px;
-            text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3);
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.3);
             letter-spacing: -2px;
             animation: fadeInScale 1s ease-out 0.3s both;
         }
 
         @keyframes fadeInScale {
-            from {
-                opacity: 0;
-                transform: scale(0.9);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
+            from { opacity: 0; transform: scale(0.9); }
+            to   { opacity: 1; transform: scale(1); }
         }
 
         .tagline {
@@ -248,14 +245,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
         .features {
@@ -276,59 +267,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         .feature-icon {
             font-size: 28px;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255,255,255,0.2);
             padding: 10px;
             border-radius: 12px;
             backdrop-filter: blur(10px);
         }
 
         .right-panel {
-    width: 520px;
-    background: white;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding: 50px 45px 40px 45px;
-    overflow-y: auto;
-    height: 100vh;
-}
-
-        @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(50px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
+            width: 520px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 50px 45px 40px 45px;
+            overflow-y: auto;
+            height: 100vh;
         }
 
         .login-card {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
-    border-radius: 30px;
-    padding: 50px 45px 40px 45px;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
-    width: 100%;
-    max-width: 450px;
-    position: relative;
-    overflow: visible;
-}
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            padding: 50px 45px 40px 45px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            overflow: visible;
+        }
 
         .login-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             height: 5px;
             background: linear-gradient(90deg, #3498db, #27ae60, #e67e22, #e74c3c);
+            border-radius: 30px 30px 0 0;
         }
 
-        .login-header {
-            margin-bottom: 40px;
-        }
+        .login-header { margin-bottom: 40px; }
 
         .login-header h2 {
             font-family: 'Playfair Display', serif;
@@ -351,6 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 8px;
             margin-bottom: 20px;
             border-left: 4px solid #c33;
+            font-size: 14px;
         }
 
         .success-message {
@@ -360,6 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 8px;
             margin-bottom: 20px;
             border-left: 4px solid #28a745;
+            font-size: 14px;
         }
 
         .form-group {
@@ -375,9 +354,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-size: 14px;
         }
 
-        .input-wrapper {
-            position: relative;
-        }
+        .input-wrapper { position: relative; }
 
         .form-input {
             width: 100%;
@@ -392,7 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .form-input:focus {
             outline: none;
             border-color: var(--secondary);
-            box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1);
+            box-shadow: 0 0 0 4px rgba(52,152,219,0.1);
         }
 
         .input-icon {
@@ -444,9 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             transition: color 0.3s;
         }
 
-        .forgot-password:hover {
-            color: var(--primary);
-        }
+        .forgot-password:hover { color: var(--primary); }
 
         .button-group {
             display: flex;
@@ -462,18 +437,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            position: relative;
         }
 
         .btn-login {
             background: linear-gradient(135deg, var(--secondary) 0%, #2980b9 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+            box-shadow: 0 4px 15px rgba(52,152,219,0.3);
         }
 
         .btn-login:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+            box-shadow: 0 6px 20px rgba(52,152,219,0.4);
         }
 
         .btn-register {
@@ -488,27 +462,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         @media (max-width: 1024px) {
-            .left-panel {
-                display: none;
-            }
-
-            .login-container {
-                justify-content: center;
-            }
+            .left-panel { display: none; }
+            .login-container { justify-content: center; }
         }
 
         @media (max-width: 480px) {
-            .right-panel {
-                padding: 20px;
-            }
-
-            .login-card {
-                padding: 35px 25px;
-            }
-
-            .login-header h2 {
-                font-size: 28px;
-            }
+            .right-panel { padding: 20px; }
+            .login-card { padding: 35px 25px; }
+            .login-header h2 { font-size: 28px; }
         }
     </style>
 </head>
@@ -521,7 +482,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="left-panel">
             <div class="logo">Trackera</div>
             <p class="tagline">Your gateway to academic excellence and seamless learning management</p>
-            
             <div class="features">
                 <div class="feature-item">
                     <div class="feature-icon">📊</div>
@@ -550,21 +510,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
 
                 <?php if ($error): ?>
-    <div class="error-message"><?php echo $error; ?></div>
-<?php endif; ?>
+                    <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+                <?php endif; ?>
 
                 <form method="POST" action="">
                     <div class="form-group">
                         <label for="email">Email Address</label>
                         <div class="input-wrapper">
-                            <input 
-                                type="email" 
-                                id="email" 
-                                name="email"
-                                class="form-input" 
-                                placeholder="Enter your email"
-                                required
-                            >
+                            <input type="email" id="email" name="email"
+                                   class="form-input" placeholder="Enter your email" required>
                             <span class="input-icon">📧</span>
                         </div>
                     </div>
@@ -572,18 +526,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="form-group">
                         <label for="password">Password</label>
                         <div class="input-wrapper">
-                            <input 
-                                type="password" 
-                                id="password" 
-                                name="password"
-                                class="form-input" 
-                                placeholder="Enter your password"
-                                required
-                            >
+                            <input type="password" id="password" name="password"
+                                   class="form-input" placeholder="Enter your password" required>
                             <span class="input-icon">🔒</span>
-                            <button type="button" class="password-toggle" onclick="togglePassword()">
-                                👁️
-                            </button>
+                            <button type="button" class="password-toggle" onclick="togglePassword()">👁️</button>
                         </div>
                     </div>
 
@@ -609,13 +555,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <script>
         function togglePassword() {
             const passwordInput = document.getElementById('password');
-            const toggleBtn = document.querySelector('.password-toggle');
-            
+            const toggleBtn     = document.querySelector('.password-toggle');
             if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
+                passwordInput.type    = 'text';
                 toggleBtn.textContent = '🙈';
             } else {
-                passwordInput.type = 'password';
+                passwordInput.type    = 'password';
                 toggleBtn.textContent = '👁️';
             }
         }
