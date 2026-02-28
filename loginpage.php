@@ -24,20 +24,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email_domain = $email_parts[1] ?? '';
 
     // Find institute by domain
-    $inst_q = mysqli_query($conn, "SELECT id, name, student_prefix, student_email_format, faculty_email_format FROM institutes WHERE email_domain='$email_domain'");
+    $inst_q = mysqli_query($conn, "SELECT id, name, student_prefix, student_identifier_type, student_email_format, faculty_email_format FROM institutes WHERE email_domain='$email_domain'");
 
     if (mysqli_num_rows($inst_q) == 0) {
         $error = "No institute found for this email domain! Please ask your institute to register on Trackera first.";
     } else {
-        $institute            = mysqli_fetch_assoc($inst_q);
-        $institute_id         = $institute['id'];
-        $institute_name       = $institute['name'];
-        $student_prefix       = $institute['student_prefix'];
-        $student_email_format = $institute['student_email_format'];
-        $faculty_email_format = $institute['faculty_email_format'];
+        $institute               = mysqli_fetch_assoc($inst_q);
+        $institute_id            = $institute['id'];
+        $institute_name          = $institute['name'];
+        $student_prefix          = $institute['student_prefix'];
+        $student_identifier_type = $institute['student_identifier_type'];
 
-        // Simple detection — if email prefix starts with student_prefix → student, else → faculty
-        $is_student = (strpos($email_prefix, $student_prefix) === 0 && strlen($email_prefix) > strlen($student_prefix));
+        // Detect student vs faculty based on identifier type
+        $is_student = false;
+        if ($student_identifier_type === 'prefix') {
+            // Email starts with student_prefix e.g. gch123 starts with gch
+            $is_student = (strpos($email_prefix, $student_prefix) === 0 && strlen($email_prefix) > strlen($student_prefix));
+        } else {
+            // Email ends with student_prefix e.g. name.surname08 ends with 08
+            $is_student = (substr($email_prefix, -strlen($student_prefix)) === $student_prefix);
+        }
 
         // Check if user exists
         $result = mysqli_query($conn, "SELECT * FROM users WHERE email='$email' AND institute_id='$institute_id'");
