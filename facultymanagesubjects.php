@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add'])) {
             }
             $success = "Subject '$subject_name' added for all grades!";
         } else {
-            $check = mysqli_query($conn, "SELECT id FROM subjects WHERE subject_name='$subject_name' AND grade='$grade' AND institute_id='$institute_id'");
+            $check = mysqli_query($conn, "SELECT subject_id FROM subjects WHERE subject_name='$subject_name' AND grade='$grade' AND institute_id='$institute_id'");
             if (mysqli_num_rows($check) > 0) {
                 $error = "Subject '$subject_name' already exists for Grade $grade!";
             } else {
@@ -51,7 +51,7 @@ $where = "WHERE institute_id='$institute_id'";
 if ($filter_grade)  $where .= " AND grade='$filter_grade'";
 if ($filter_search) $where .= " AND subject_name LIKE '%$filter_search%'";
 
-$subjects_q = mysqli_query($conn, "SELECT id, subject_name, grade FROM subjects $where ORDER BY grade ASC, subject_name ASC");
+$subjects_q = mysqli_query($conn, "SELECT subject_id, subject_name, grade FROM subjects $where ORDER BY grade ASC, subject_name ASC");
 $subjects   = [];
 while ($row = mysqli_fetch_assoc($subjects_q)) {
     $subjects[] = $row;
@@ -312,7 +312,7 @@ while ($row = mysqli_fetch_assoc($subjects_q)) {
                                 <td><?php echo htmlspecialchars($sub['subject_name']); ?></td>
                                 <td><span class="grade-badge">Grade <?php echo $sub['grade']; ?></span></td>
                                 <td>
-                                    <a href="facultymanagesubjects.php?delete=<?php echo $sub['id']; ?>"
+                                    <a href="facultymanagesubjects.php?delete=<?php echo $sub['subject_id']; ?>"
                                        class="btn-delete"
                                        onclick="return confirm('Delete this subject? This will also affect marks and attendance records.')">
                                         🗑️ Delete

@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } elseif (empty($faculty_suffix)) {
     // Student has extra suffix e.g. 08 — check if login email ends with that suffix
     $is_student = (substr($email_prefix, -strlen($student_suffix)) === $student_suffix);
-}else {
+}   else {
             // Both differ after common base — student ends with student_suffix
             $is_student = (substr($email_prefix, -strlen($student_suffix)) === $student_suffix);
         }
@@ -552,11 +552,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
 
                     <div class="button-group">
-                        <button type="submit" class="btn btn-login">Login</button>
-                        <button type="button" class="btn btn-register" onclick="window.location.href='registration.php'">
-                            Create Student Account
-                        </button>
-                    </div>
+    <button type="submit" class="btn btn-login">Login</button>
+    <button type="button" class="btn btn-register" onclick="window.location.href='registration.php'">
+        Create Student Account
+    </button>
+    <button type="button" class="btn btn-register" onclick="window.location.href='landingpage.php'">
+        🏠 Back to Home
+    </button>
+</div>
                 </form>
             </div>
         </div>
