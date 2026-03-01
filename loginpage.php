@@ -24,25 +24,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email_domain = $email_parts[1] ?? '';
 
     // Find institute by domain
-    $inst_q = mysqli_query($conn, "SELECT id, name, student_prefix, student_identifier_type, student_email_format, faculty_email_format FROM institutes WHERE email_domain='$email_domain'");
+    $inst_q = mysqli_query($conn, "SELECT id, name, student_email_format, faculty_email_format FROM institutes WHERE email_domain='$email_domain'");
 
     if (mysqli_num_rows($inst_q) == 0) {
         $error = "No institute found for this email domain! Please ask your institute to register on Trackera first.";
     } else {
-        $institute               = mysqli_fetch_assoc($inst_q);
-        $institute_id            = $institute['id'];
-        $institute_name          = $institute['name'];
-        $student_prefix          = $institute['student_prefix'];
-        $student_identifier_type = $institute['student_identifier_type'];
+        $institute            = mysqli_fetch_assoc($inst_q);
+        $institute_id         = $institute['id'];
+        $institute_name       = $institute['name'];
+        $student_email_format = $institute['student_email_format'];
+        $faculty_email_format = $institute['faculty_email_format'];
 
-        // Detect student vs faculty based on identifier type
+        // Extract prefixes from stored format examples
+        $student_prefix = explode('@', $student_email_format)[0]; // e.g. "gch123" or "name.surname08"
+        $faculty_prefix = explode('@', $faculty_email_format)[0]; // e.g. "smrit.mandhana"
+
+        // Find common base between student and faculty prefix from the start
+        $common_base = '';
+        for ($i = 0; $i < min(strlen($student_prefix), strlen($faculty_prefix)); $i++) {
+            if ($student_prefix[$i] === $faculty_prefix[$i]) {
+                $common_base .= $student_prefix[$i];
+            } else {
+                break;
+            }
+        }
+
+        $student_suffix = substr($student_prefix, strlen($common_base)); // e.g. "123" or "08"
+        $faculty_suffix = substr($faculty_prefix, strlen($common_base)); // e.g. "" or "ndhana"
+
         $is_student = false;
-        if ($student_identifier_type === 'prefix') {
-            // Email starts with student_prefix e.g. gch123 starts with gch
-            $is_student = (strpos($email_prefix, $student_prefix) === 0 && strlen($email_prefix) > strlen($student_prefix));
+
+        if (empty($common_base)) {
+            // No common base — completely different formats e.g. gch123 vs smrit.mandhana
+            // Check if login email starts with same letters as student example
+            $student_letters = preg_replace('/[^a-zA-Z]/', '', $student_prefix); // e.g. "gch"
+            $student_alpha   = substr($student_letters, 0, 3); // first 3 letters e.g. "gch"
+            $is_student      = (strpos($email_prefix, $student_alpha) === 0);
+        } elseif (empty($faculty_suffix)) {
+            // Faculty prefix is base — student has extra chars after e.g. name.surname vs name.surname08
+            $is_student = (strpos($email_prefix, $common_base) === 0 && strlen($email_prefix) > strlen($faculty_prefix));
         } else {
-            // Email ends with student_prefix e.g. name.surname08 ends with 08
-            $is_student = (substr($email_prefix, -strlen($student_prefix)) === $student_prefix);
+            // Both differ after common base — student ends with student_suffix
+            $is_student = (substr($email_prefix, -strlen($student_suffix)) === $student_suffix);
         }
 
         // Check if user exists
