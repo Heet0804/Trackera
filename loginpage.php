@@ -61,9 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $student_alpha   = substr($student_letters, 0, 3); // first 3 letters e.g. "gch"
             $is_student      = (strpos($email_prefix, $student_alpha) === 0);
         } elseif (empty($faculty_suffix)) {
-            // Faculty prefix is base — student has extra chars after e.g. name.surname vs name.surname08
-            $is_student = (strpos($email_prefix, $common_base) === 0 && strlen($email_prefix) > strlen($faculty_prefix));
-        } else {
+    // Student has extra suffix e.g. 08 — check if login email ends with that suffix
+    $is_student = (substr($email_prefix, -strlen($student_suffix)) === $student_suffix);
+}else {
             // Both differ after common base — student ends with student_suffix
             $is_student = (substr($email_prefix, -strlen($student_suffix)) === $student_suffix);
         }
