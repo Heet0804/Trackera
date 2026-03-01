@@ -218,7 +218,7 @@ if ($sel_grade) {
 <body>
     <div class="header">
         <div class="header-title">🏷️ Assign Divisions</div>
-        <a href="facultydashboard.php" class="btn-back">← Back</a>
+        <a href="facultydashboard.php" class="btn-back">← Back To Dashboard</a>
     </div>
 
     <div class="content">
