@@ -12,18 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $phone                = mysqli_real_escape_string($conn, trim($_POST['phone']));
     $address              = mysqli_real_escape_string($conn, trim($_POST['address']));
     $type                 = mysqli_real_escape_string($conn, $_POST['type']);
-    $student_prefix          = mysqli_real_escape_string($conn, strtolower(trim($_POST['student_prefix'])));
-    $student_identifier_type = mysqli_real_escape_string($conn, $_POST['student_identifier_type']);
-    $student_email_format    = mysqli_real_escape_string($conn, strtolower(trim($_POST['student_email_format'])));
-    $faculty_email_format    = mysqli_real_escape_string($conn, strtolower(trim($_POST['faculty_email_format'])));
-    $password                = $_POST['password'];
-    $confirm                 = $_POST['confirm_password'];
-
-    // Extract domain from student email example
-    $email_domain = '';
-    if (strpos($student_email_format, '@') !== false) {
-        $email_domain = explode('@', $student_email_format)[1];
-    }
+    $email_domain         = mysqli_real_escape_string($conn, strtolower(trim($_POST['email_domain'])));
+    $student_email_format = mysqli_real_escape_string($conn, strtolower(trim($_POST['student_email_format'])));
+    $faculty_email_format = mysqli_real_escape_string($conn, strtolower(trim($_POST['faculty_email_format'])));
+    $password             = $_POST['password'];
+    $confirm              = $_POST['confirm_password'];
 
     if (empty($name)) {
         $error = "Please enter your institute name.";
@@ -31,16 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Please enter a valid contact email address.";
     } elseif (empty($phone)) {
         $error = "Please enter a contact number.";
-    } elseif (empty($student_prefix)) {
-        $error = "Please enter the student identifier (e.g. gch or 08).";
-    } elseif (!in_array($student_identifier_type, ['prefix', 'suffix'])) {
-        $error = "Please select a valid identifier type (Prefix or Suffix).";
+    } elseif (empty($email_domain)) {
+        $error = "Please enter your institute email domain.";
+    } elseif (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $email_domain)) {
+        $error = "Please enter a valid email domain (e.g. fhs.ac.in)";
     } elseif (empty($student_email_format) || strpos($student_email_format, '@') === false) {
         $error = "Please enter a valid student email example (must contain @).";
     } elseif (empty($faculty_email_format) || strpos($faculty_email_format, '@') === false) {
         $error = "Please enter a valid faculty email example (must contain @).";
-    } elseif (empty($email_domain)) {
-        $error = "Could not extract domain from student email example.";
     } elseif (!in_array($type, ['School', 'College', 'Tutorial'])) {
         $error = "Please select a valid institute type.";
     } elseif (strlen($password) < 6) {
@@ -57,8 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $error = "This email domain is already registered!";
             } else {
                 $hashed = password_hash($password, PASSWORD_DEFAULT);
-                $ins = "INSERT INTO institutes (name, email, password, phone, address, type, email_domain, student_prefix, student_identifier_type, student_email_format, faculty_email_format, created_at)
-                        VALUES ('$name', '$email', '$hashed', '$phone', '$address', '$type', '$email_domain', '$student_prefix', '$student_identifier_type', '$student_email_format', '$faculty_email_format', NOW())";
+                $ins = "INSERT INTO institutes (name, email, password, phone, address, type, email_domain, student_email_format, faculty_email_format, created_at)
+                        VALUES ('$name', '$email', '$hashed', '$phone', '$address', '$type', '$email_domain', '$student_email_format', '$faculty_email_format', NOW())";
                 if (mysqli_query($conn, $ins)) {
                     $success = "Institute registered successfully! Your students and faculty can now login using their respective email formats.";
                 } else {
@@ -453,60 +444,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                 <!-- Warning Box -->
                 <div class="warning-box">
-                    <strong>⚠️ Important — Email Format Requirements:</strong><br><br>
-                    The system uses a student identifier to distinguish <strong>Students</strong> from <strong>Faculty</strong> during login.<br><br>
-                    👨‍🎓 <strong>Prefix example:</strong> <code>gch</code> → student emails start with <code>gch</code> (e.g. <code>gch123@domain.com</code>)<br>
-                    👨‍🎓 <strong>Suffix example:</strong> <code>08</code> → student emails end with <code>08</code> before @ (e.g. <code>name.surname08@domain.com</code>)
+                    <strong>⚠️ Important:</strong> The student and faculty email examples you enter will be used to identify users during login. Make sure they are correct!
                 </div>
 
-                <!-- Student Identifier -->
+                <!-- Email Domain -->
                 <div class="form-group">
-                    <label>Student Identifier Value:</label>
-                    <input type="text" name="student_prefix"
-                           placeholder="e.g. gch OR 08"
-                           value="<?php echo isset($_POST['student_prefix']) ? htmlspecialchars($_POST['student_prefix']) : ''; ?>"
+                    <label>Institute Email Domain:</label>
+                    <input type="text" name="email_domain"
+                           placeholder="e.g. fhs.ac.in"
+                           value="<?php echo isset($_POST['email_domain']) ? htmlspecialchars($_POST['email_domain']) : ''; ?>"
                            required>
-                    <div class="domain-hint">💡 Enter the unique part that identifies a student email</div>
-                </div>
-
-                <!-- Identifier Type -->
-                <div class="form-group">
-                    <label>Identifier Type:</label>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                        <div class="type-option <?php echo (isset($_POST['student_identifier_type']) && $_POST['student_identifier_type']=='prefix') ? 'selected' : ''; ?>"
-                             onclick="selectIdentifierType('prefix')">
-                            <div class="type-icon">⬅️</div>
-                            Prefix<br><small>Starts with identifier</small>
-                        </div>
-                        <div class="type-option <?php echo (isset($_POST['student_identifier_type']) && $_POST['student_identifier_type']=='suffix') ? 'selected' : ''; ?>"
-                             onclick="selectIdentifierType('suffix')">
-                            <div class="type-icon">➡️</div>
-                            Suffix<br><small>Ends with identifier</small>
-                        </div>
-                    </div>
-                    <input type="hidden" name="student_identifier_type" id="identifierTypeInput"
-                           value="<?php echo isset($_POST['student_identifier_type']) ? htmlspecialchars($_POST['student_identifier_type']) : 'prefix'; ?>">
-                    <div class="domain-hint">💡 Prefix = email starts with identifier (gch123). Suffix = email ends with identifier (name.surname08)</div>
+                    <div class="domain-hint">💡 Enter the domain used in all your institute emails (e.g. <strong>fhs.ac.in</strong>)</div>
                 </div>
 
                 <!-- Student Email Example -->
                 <div class="form-group">
                     <label>Student Email Example:</label>
                     <input type="text" name="student_email_format"
-                           placeholder="e.g. gch123@sunshine.ac.in or name.surname08@sunshine.ac.in"
+                           placeholder="e.g. gch123@fhs.ac.in or name.surname08@fhs.ac.in"
                            value="<?php echo isset($_POST['student_email_format']) ? htmlspecialchars($_POST['student_email_format']) : ''; ?>"
                            required>
-                    <div class="domain-hint">💡 Enter one full example of a student email. The domain will be extracted automatically.</div>
+                    <div class="domain-hint">💡 Enter one example of a student email from your institute</div>
                 </div>
 
                 <!-- Faculty Email Example -->
                 <div class="form-group">
                     <label>Faculty Email Example:</label>
                     <input type="text" name="faculty_email_format"
-                           placeholder="e.g. name.surname@sunshine.ac.in"
+                           placeholder="e.g. smrit.mandhana@fhs.ac.in"
                            value="<?php echo isset($_POST['faculty_email_format']) ? htmlspecialchars($_POST['faculty_email_format']) : ''; ?>"
                            required>
-                    <div class="domain-hint">💡 Enter one full example of a faculty email.</div>
+                    <div class="domain-hint">💡 Enter one example of a faculty email from your institute</div>
                 </div>
 
                 <!-- Email and Phone -->
@@ -564,14 +532,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         function selectType(type) {
             document.querySelectorAll('.type-option').forEach(el => el.classList.remove('selected'));
             document.getElementById('typeInput').value = type;
-            event.currentTarget.classList.add('selected');
-        }
-
-        function selectIdentifierType(type) {
-            document.getElementById('identifierTypeInput').value = type;
-            // Only toggle within identifier type grid
-            const grid = event.currentTarget.parentElement;
-            grid.querySelectorAll('.type-option').forEach(el => el.classList.remove('selected'));
             event.currentTarget.classList.add('selected');
         }
     </script>
